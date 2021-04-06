@@ -1,4 +1,4 @@
-namespace EasyRabbitMqClient.Abstractions
+namespace EasyRabbitMqClient.Abstractions.Models
 {
     public interface IExchange
     {

@@ -1,6 +1,6 @@
-using EasyRabbitMqClient.Abstractions;
+using EasyRabbitMqClient.Abstractions.Models;
 
-namespace EasyRabbitMqClient.Core
+namespace EasyRabbitMqClient.Core.Models
 {
     public class Exchange : IExchange
     {

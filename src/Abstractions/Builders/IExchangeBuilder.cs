@@ -1,3 +1,5 @@
+using EasyRabbitMqClient.Abstractions.Models;
+
 namespace EasyRabbitMqClient.Abstractions.Builders
 {
     public interface IExchangeBuilder
