@@ -11,7 +11,6 @@ using EasyRabbitMqClient.Core.Exceptions;
 using EasyRabbitMqClient.Core.Extensions;
 using EasyRabbitMqClient.Core.Models;
 using EasyRabbitMqClient.Publisher.Exceptions;
-using Polly;
 using RabbitMQ.Client;
 
 namespace EasyRabbitMqClient.Publisher
@@ -97,48 +96,55 @@ namespace EasyRabbitMqClient.Publisher
             {
                 var failedMessages = new List<IMessage>();
                 using var model = Connect().CreateModel();
-                var batch = model.CreateBasicPublishBatch();
-                foreach (var message in batching)
+                try
                 {
-                    try
-                    {
-                        if (message.CancellationToken.IsCancellationRequested) continue;
+                    model.ConfirmSelect();
 
-                        message.Routing.DeclareExchange(model);
-                        var basicProperties = model.CreateBasicProperties();
-                        basicProperties.ContentType = MediaTypeNames.Application.Json;
-                        basicProperties.Headers = message.GetHeaders();
-                        batch.Add(message.Routing.ExchangeName, message.Routing.RoutingKey, false, basicProperties,
-                            message.Serialize());
-                    }
-                    catch (Exception ex)
+                    var batch = model.CreateBasicPublishBatch();
+                    foreach (var message in batching)
                     {
-                        message.AddHeader("LastException", ex.ToString());
-                        failedMessages.Add(message);
+                        try
+                        {
+                            if (message.CancellationToken.IsCancellationRequested) continue;
+
+                            message.Routing.DeclareExchange(model);
+                            var basicProperties = model.CreateBasicProperties();
+                            basicProperties.ContentType = MediaTypeNames.Application.Json;
+                            basicProperties.Headers = message.GetHeaders();
+                            batch.Add(message.Routing.ExchangeName, message.Routing.RoutingKey, false, basicProperties,
+                                message.Serialize());
+                        }
+                        catch (Exception ex)
+                        {
+                            message.AddHeader("LastException", ex.ToString());
+                            failedMessages.Add(message);
+                        }
                     }
+
+                    if (cancellationToken.IsCancellationRequested) return true;
+                    
+                    batch.Publish();
+                    model.WaitForConfirmsOrDie(batching.PublishingTimeout);
+                    
+                    if (!failedMessages.Any())
+                    {
+                        OnNext(batching);
+                        return true;
+                    }
+
+                    OnNext(new MessageBatching(batching.Except(failedMessages)));
+                    batching = new MessageBatching(failedMessages, batching.PublishingTimeout);
+                    return false;
                 }
-
-                if (cancellationToken.IsCancellationRequested) return true;
-                batch.Publish();
-                if (!failedMessages.Any())
+                finally
                 {
-                    OnNext(batching);
-                    return true;
+                    model.Close();
                 }
-                
-                OnNext(new MessageBatching(batching.Except(failedMessages)));                
-                batching = new MessageBatching(failedMessages);
-                return false;
             }
             
             try
             {
-                var result = Policy
-                    .Handle<Exception>(_retryBehavior.ShouldRetry)
-                    .OrResult<bool>(x => !x)
-                    .WaitAndRetry(
-                        _retryBehavior.MaxAttempts, _retryBehavior.GetDelayForAttempt)
-                    .Execute(PublishMessages);
+                var result = _retryBehavior?.Execute(PublishMessages) ?? PublishMessages();
 
                 if (!result)
                 {
