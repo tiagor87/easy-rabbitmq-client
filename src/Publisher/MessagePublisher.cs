@@ -107,6 +107,7 @@ namespace EasyRabbitMqClient.Publisher
                             message.Routing.DeclareExchange(model);
                             var basicProperties = model.CreateBasicProperties();
                             basicProperties.ContentType = MediaTypeNames.Application.Json;
+                            basicProperties.CorrelationId = message.CorrelationId;
                             basicProperties.Headers = message.GetHeaders();
                             batch.Add(message.Routing.ExchangeName, message.Routing.RoutingKey, false, basicProperties,
                                 message.Serialize());

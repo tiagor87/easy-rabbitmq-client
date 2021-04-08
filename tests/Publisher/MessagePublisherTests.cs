@@ -33,6 +33,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
             var bytes = Array.Empty<byte>();
             const string exchange = "exchange";
             const string routingKey = "exchange";
+            const string correlationId = "correlationId";
             var headersMock = new Mock<IDictionary<string, object>>();
             
             _channelMock.Setup(x => x.CreateBasicPublishBatch())
@@ -59,6 +60,9 @@ namespace EasyRabbitMqClient.Publisher.Tests
                 .Verifiable();
             messageMock.Setup(x => x.GetHeaders())
                 .Returns(headersMock.Object)
+                .Verifiable();
+            messageMock.SetupGet(x => x.CorrelationId)
+                .Returns(correlationId)
                 .Verifiable();
             
             

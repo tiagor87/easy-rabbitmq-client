@@ -14,6 +14,7 @@ namespace EasyRabbitMqClient.Core.Builders
         private CancellationToken _cancellationToken;
         private IPublisherSerializer _serializer;
         private IRouting _routing;
+        private string _correlationId;
 
         public MessageBuilder(IServiceProvider serviceProvider)
         {
@@ -23,6 +24,12 @@ namespace EasyRabbitMqClient.Core.Builders
         public IMessageBuilder WithMessage(object message)
         {
             _message = message;
+            return this;
+        }
+
+        public IMessageBuilder WithCorrelationId(string correlationId)
+        {
+            _correlationId = correlationId;
             return this;
         }
 
@@ -46,7 +53,7 @@ namespace EasyRabbitMqClient.Core.Builders
 
         public IMessage Build()
         {
-            var message = new Message(_message, _serializer, _routing, _cancellationToken);
+            var message = new Message(_message, _serializer, _routing, _correlationId, _cancellationToken);
             return message;
         }
     }

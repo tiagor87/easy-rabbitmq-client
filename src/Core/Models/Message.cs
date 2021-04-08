@@ -10,13 +10,14 @@ namespace EasyRabbitMqClient.Core.Models
     {
         private readonly object _message;
         private readonly IDictionary<string, object> _headers;
-
-        public Message(object message, IPublisherSerializer serializer, IRouting routing, CancellationToken cancellationToken)
+        
+        public Message(object message, IPublisherSerializer serializer, IRouting routing, string correlationId = default, CancellationToken cancellationToken = default)
         {
             CreatedAt = DateTime.UtcNow;
             Routing = routing;
             CancellationToken = cancellationToken;
             Serializer = serializer;
+            CorrelationId = correlationId ?? Guid.NewGuid().ToString();
             _message = message;
             _headers = new Dictionary<string, object>()
             {
@@ -28,6 +29,7 @@ namespace EasyRabbitMqClient.Core.Models
         }
 
         public DateTime CreatedAt { get; }
+        public string CorrelationId { get; }
         public IRouting Routing { get; }
         public CancellationToken CancellationToken { get; }
         public IPublisherSerializer Serializer { get; }

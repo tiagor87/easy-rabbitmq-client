@@ -7,6 +7,7 @@ namespace EasyRabbitMqClient.Abstractions.Models
     public interface IMessage
     {
         DateTime CreatedAt { get; }
+        string CorrelationId { get; }
         IRouting Routing { get; }
         CancellationToken CancellationToken { get; }
         ReadOnlyMemory<byte> Serialize();
