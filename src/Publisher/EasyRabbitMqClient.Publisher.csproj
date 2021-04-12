@@ -8,4 +8,8 @@
     <ProjectReference Include="..\Core\EasyRabbitMqClient.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="Models" />
+  </ItemGroup>
+
 </Project>

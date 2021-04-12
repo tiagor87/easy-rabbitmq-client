@@ -1,16 +1,17 @@
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
-using System.Net.Mime;
 using System.Threading;
 using System.Threading.Tasks;
+using EasyRabbitMqClient.Abstractions.Behaviors;
 using EasyRabbitMqClient.Abstractions.Models;
 using EasyRabbitMqClient.Abstractions.Publishers;
-using EasyRabbitMqClient.Abstractions.RetryBehaviors;
 using EasyRabbitMqClient.Core.Exceptions;
-using EasyRabbitMqClient.Core.Extensions;
 using EasyRabbitMqClient.Core.Models;
 using EasyRabbitMqClient.Publisher.Exceptions;
+using EasyRabbitMqClient.Publisher.Extensions;
+using EasyRabbitMqClient.Publisher.Observers;
 using RabbitMQ.Client;
 
 namespace EasyRabbitMqClient.Publisher
@@ -20,15 +21,30 @@ namespace EasyRabbitMqClient.Publisher
         private volatile bool _disposed;
         private IConnection _connection;
         private readonly IConnectionFactory _connectionFactory;
-        private readonly IRetryBehavior _retryBehavior;
+        private readonly IBehavior _behavior;
         private readonly HashSet<IObserver<IMessageBatching>> _observers;
         private static object _sync = new();
 
-        public MessagePublisher(IConnectionFactory connectionFactory, IRetryBehavior retryBehavior)
+        public MessagePublisher(IConnectionFactory connectionFactory, IBehavior behavior)
         {
             _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
-            _retryBehavior = retryBehavior;
+            _behavior = behavior;
             _observers = new HashSet<IObserver<IMessageBatching>>();
+        }
+        
+        public MessagePublisher(IConnectionFactory connectionFactory) : this(
+            connectionFactory, null)
+        {
+        }
+
+        public MessagePublisher(RabbitMqConnectionString connectionString, IBehavior behavior) : this(
+            connectionString.CreateFactory(), behavior)
+        {
+        }
+        
+        public MessagePublisher(RabbitMqConnectionString connectionString) : this(
+            connectionString.CreateFactory(), null)
+        {
         }
 
         ~MessagePublisher()
@@ -85,76 +101,21 @@ namespace EasyRabbitMqClient.Publisher
             }
         }
 
-        private void PublishBatching(IMessageBatching batching, CancellationToken cancellationToken)
+        private void PublishBatching(IMessageBatching batching, CancellationToken cancellationToken =  default)
         {
-            const string lastException = "LastException";
-            bool PublishMessages()
+            if (_disposed) throw new ObjectDisposedException(nameof(MessagePublisher));
+
+            bool Execute()
             {
-                var hasMessageToSend = false;
-                var failedMessages = new List<IMessage>();
-                using var model = Connect().CreateModel();
-                try
-                {
-                    model.ConfirmSelect();
-
-                    var batch = model.CreateBasicPublishBatch();
-                    foreach (var message in batching)
-                    {
-                        try
-                        {
-                            if (message.CancellationToken.IsCancellationRequested) continue;
-
-                            message.Routing.DeclareExchange(model);
-                            var basicProperties = model.CreateBasicProperties();
-                            basicProperties.ContentType = MediaTypeNames.Application.Json;
-                            basicProperties.CorrelationId = message.CorrelationId;
-                            basicProperties.Headers = message.GetHeaders();
-                            batch.Add(message.Routing.ExchangeName, message.Routing.RoutingKey, false, basicProperties,
-                                message.Serialize());
-                            hasMessageToSend = true;
-                        }
-                        catch (Exception ex)
-                        {
-                            message.AddHeader(lastException, ex.ToString());
-                            failedMessages.Add(message);
-                        }
-                    }
-                    
-                    if (batching.Count == failedMessages.Count)
-                    {
-                        return false;
-                    }
-
-                    if (cancellationToken.IsCancellationRequested
-                        || !hasMessageToSend) return true;
-
-                    batch.Publish();
-                    model.WaitForConfirmsOrDie(batching.PublishingTimeout);
-                    
-                    if (!failedMessages.Any())
-                    {
-                        OnNext(batching);
-                        return true;
-                    }
-
-                    OnNext(new MessageBatching(batching.Except(failedMessages)));
-                    batching = new MessageBatching(failedMessages, batching.PublishingTimeout);
-                    return false;
-                }
-                finally
-                {
-                    model.Close();
-                }
-            }
-            
-            if (_disposed)
-            {
-                throw new ObjectDisposedException(nameof(MessagePublisher));
+                if (TryPublishMessages(batching, out var failed, cancellationToken)) return true;
+                
+                batching = failed;
+                return false;
             }
             
             try
             {
-                var result = _retryBehavior?.Execute(PublishMessages) ?? PublishMessages();
+                var result = _behavior?.Execute(Execute) ?? Execute();
 
                 if (!result)
                 {
@@ -168,6 +129,60 @@ namespace EasyRabbitMqClient.Publisher
             catch (Exception ex)
             {
                 OnError(new PublishingException(batching, ex));
+            }
+        }
+        
+        private bool TryPublishMessages(IMessageBatching batching, out IMessageBatching failedBatching, CancellationToken cancellationToken)
+        {
+            const string lastException = "LastException";
+            
+            var hasMessageToSend = false;
+            var failedMessages = new HashSet<IMessage>();
+            failedBatching = null;
+            using var model = Connect().CreateModel();
+            try
+            {
+                model.ConfirmSelect();
+
+                var batch = model.CreateBasicPublishBatch();
+                foreach (var message in batching)
+                {
+                    try
+                    {
+                        hasMessageToSend = batch.Add(model, message) || hasMessageToSend;
+                    }
+                    catch (Exception ex)
+                    {
+                        message.AddHeader(lastException, ex.ToString());
+                        failedMessages.Add(message);
+                    }
+                }
+                    
+                if (batching.Count == failedMessages.Count)
+                {
+                    failedBatching = new MessageBatching(failedMessages, batching.PublishingTimeout);
+                    return false;
+                }
+
+                if (cancellationToken.IsCancellationRequested
+                    || !hasMessageToSend) return true;
+
+                batch.Publish();
+                model.WaitForConfirmsOrDie(batching.PublishingTimeout);
+                    
+                if (!failedMessages.Any())
+                {
+                    OnNext(batching);
+                    return true;
+                }
+
+                OnNext(new MessageBatching(batching.Except(failedMessages)));
+                failedBatching = new MessageBatching(failedMessages, batching.PublishingTimeout);
+                return false;
+            }
+            finally
+            {
+                model.Close();
             }
         }
         
@@ -192,21 +207,6 @@ namespace EasyRabbitMqClient.Publisher
             foreach (var observer in _observers)
             {
                 observer.OnCompleted();
-            }
-        }
-        
-        class UnSubscriber : IDisposable
-        {
-            private readonly Action _unsubscribe;
-
-            internal UnSubscriber(Action unsubscribe)
-            {
-                _unsubscribe = unsubscribe;
-            }
-
-            public void Dispose()
-            {
-                _unsubscribe();
             }
         }
     }

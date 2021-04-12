@@ -1,9 +1,11 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EasyRabbitMqClient.Abstractions.Models;
 using EasyRabbitMqClient.Abstractions.Publishers;
+using EasyRabbitMqClient.Core.Exceptions;
 using EasyRabbitMqClient.Publisher.Exceptions;
 using EasyRabbitMqClient.Publisher.Tests.Fixtures;
 using FluentAssertions;
@@ -92,11 +94,14 @@ namespace EasyRabbitMqClient.Publisher.Tests
         {
             var basicPropertiesMock = new Mock<IBasicProperties>();
             var batchMock = new Mock<IBasicPublishBatch>();
+            
             var routingMock = new Mock<IRouting>();
-            var messageMock = new Mock<IMessage>();
-            var bytes = Array.Empty<byte>();
             const string exchange = "exchange";
             const string routingKey = "exchange";
+            
+            var messageMock = new Mock<IMessage>();
+            var bytes = Array.Empty<byte>();
+            
             var observerMock = new Mock<IObserver<IMessageBatching>>(); 
             var headersMock = new Mock<IDictionary<string, object>>();
             
@@ -219,23 +224,15 @@ namespace EasyRabbitMqClient.Publisher.Tests
             observerMock.VerifyAll();
         }
         
-        [Fact]
-        public async Task GivenMessageWhenFailShouldCreateExceptionWithMessages()
+        [Theory]
+        [ClassData(typeof(ExceptionData))]
+        public async Task GivenMessageWhenFailShouldCreateExceptionWithMessages(Exception exception)
         {
-            var batchMock = new Mock<IBasicPublishBatch>();
             var messageMock = new Mock<IMessage>();
             var observerMock = new Mock<IObserver<IMessageBatching>>();
             
-            _channelMock.Setup(x => x.CreateBasicPublishBatch())
-                .Returns(batchMock.Object)
-                .Verifiable();
             _channelMock.Setup(x => x.ConfirmSelect())
-                .Verifiable();
-            
-            messageMock.SetupGet(x => x.Routing)
-                .Throws<Exception>()
-                .Verifiable();
-            messageMock.Setup(x => x.AddHeader("LastException", It.IsAny<string>()))
+                .Throws(exception)
                 .Verifiable();
             
             observerMock.Setup(x => x.OnError(It.IsAny<PublishingException>()))
@@ -251,10 +248,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
             _channelMock.VerifyAll();
             unsubscribe.Should().NotBeNull();
             messageMock.VerifyAll();
-            batchMock.Verify(x => x.Publish(), Times.Never());
-            batchMock.VerifyAll();
             observerMock.VerifyAll();
-
         }
         
         [Fact]
@@ -394,6 +388,20 @@ namespace EasyRabbitMqClient.Publisher.Tests
             messageMock.VerifyAll();
             batchMock.Verify(x => x.Publish(), Times.Never());
             batchMock.VerifyAll();
+        }
+    }
+
+    public class ExceptionData : IEnumerable<object[]>
+    {
+        public IEnumerator<object[]> GetEnumerator()
+        {
+            yield return new object[] {new Exception()};
+            yield return new object[] {new ForbiddenException(string.Empty, new Exception())};
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return GetEnumerator();
         }
     }
 }

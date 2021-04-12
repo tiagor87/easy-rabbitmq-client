@@ -1,20 +1,20 @@
 using System;
-using EasyRabbitMqClient.Abstractions.RetryBehaviors;
+using EasyRabbitMqClient.Abstractions.Behaviors;
 using Polly;
 using Polly.Retry;
 
 namespace EasyRabbitMqClient.Core.RetryBehaviors
 {
-    public class ArithmeticRetryBehavior : IRetryBehavior
+    public class ArithmeticBehavior : IBehavior
     {
         private readonly RetryPolicy<bool> _retryPolicy;
-        private readonly int _coeficient;
+        private readonly int _coefficient;
         private readonly TimeSpan _delay;
         private readonly TimeSpan? _maxDelay;
 
-        public ArithmeticRetryBehavior(int coeficient, TimeSpan delay, int? maxAttempts = null, TimeSpan? maxDelay = null)
+        public ArithmeticBehavior(int coefficient, TimeSpan delay, int? maxAttempts = null, TimeSpan? maxDelay = null)
         {
-            _coeficient = coeficient;
+            _coefficient = coefficient;
             _delay = delay;
             _maxDelay = maxDelay;
             _retryPolicy = Policy
@@ -30,7 +30,7 @@ namespace EasyRabbitMqClient.Core.RetryBehaviors
         
         private TimeSpan GetDelayForAttempt(int attempt)
         {
-            var delay = TimeSpan.FromMilliseconds(_delay.TotalMilliseconds + (attempt - 1) * _coeficient);
+            var delay = TimeSpan.FromMilliseconds(_delay.TotalMilliseconds + (attempt - 1) * _coefficient);
             
             if (!_maxDelay.HasValue || delay < _maxDelay) return delay;
             
