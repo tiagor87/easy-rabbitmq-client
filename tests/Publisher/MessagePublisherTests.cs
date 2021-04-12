@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using EasyRabbitMqClient.Abstractions.Behaviors;
 using EasyRabbitMqClient.Abstractions.Models;
 using EasyRabbitMqClient.Abstractions.Publishers;
 using EasyRabbitMqClient.Core.Exceptions;
@@ -11,6 +12,7 @@ using EasyRabbitMqClient.Publisher.Tests.Fixtures;
 using FluentAssertions;
 using Moq;
 using RabbitMQ.Client;
+using RabbitMQ.Client.Exceptions;
 using Xunit;
 
 namespace EasyRabbitMqClient.Publisher.Tests
@@ -19,10 +21,19 @@ namespace EasyRabbitMqClient.Publisher.Tests
     {
         private readonly IMessagePublisher _messagePublisher;
         private readonly Mock<IModel> _channelMock;
+        private readonly Mock<IBehavior> _behaviorMock;
 
         public MessagePublisherTests(ConnectionFixture connectionFixture)
         {
-            _messagePublisher = new MessagePublisher(connectionFixture.GetConnectionFactory(out _channelMock), null);
+            _behaviorMock = new Mock<IBehavior>();
+            _messagePublisher = new MessagePublisher(connectionFixture.GetConnectionFactory(out _channelMock), _behaviorMock.Object);
+        }
+
+        private void SetupProxyPassBehavior()
+        {
+            _behaviorMock.Setup(x => x.Execute(It.IsAny<Func<bool>>()))
+                .Returns((Func<bool> action) => action())
+                .Verifiable();
         }
 
         [Fact]
@@ -37,6 +48,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
             const string routingKey = "exchange";
             const string correlationId = "correlationId";
             var headersMock = new Mock<IDictionary<string, object>>();
+            SetupProxyPassBehavior();
             
             _channelMock.Setup(x => x.CreateBasicPublishBatch())
                 .Returns(batchMock.Object)
@@ -87,6 +99,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
             _channelMock.VerifyAll();
             messageMock.VerifyAll();
             batchMock.VerifyAll();
+            _behaviorMock.VerifyAll();
         }
         
         [Fact]
@@ -147,6 +160,8 @@ namespace EasyRabbitMqClient.Publisher.Tests
             
             observerMock.Setup(x => x.OnNext(It.IsAny<IMessageBatching>()))
                 .Verifiable();
+            
+            SetupProxyPassBehavior();
 
             var unsubscribe = _messagePublisher.Subscribe(observerMock.Object);
             await _messagePublisher.PublishAsync(messageMock.Object, CancellationToken.None);
@@ -156,6 +171,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
             messageMock.VerifyAll();
             batchMock.VerifyAll();
             observerMock.VerifyAll();
+            _behaviorMock.VerifyAll();
         }
         
         [Fact]
@@ -176,6 +192,8 @@ namespace EasyRabbitMqClient.Publisher.Tests
             messageMock.Setup(x => x.AddHeader("LastException", It.IsAny<string>()))
                 .Verifiable();
             
+            SetupProxyPassBehavior();
+            
             await _messagePublisher.PublishAsync(messageMock.Object, CancellationToken.None);
             
             _channelMock.Verify(
@@ -186,6 +204,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
             messageMock.VerifyAll();
             batchMock.Verify(x => x.Publish(), Times.Never());
             batchMock.VerifyAll();
+            _behaviorMock.VerifyAll();
         }
         
         [Fact]
@@ -209,6 +228,8 @@ namespace EasyRabbitMqClient.Publisher.Tests
             
             observerMock.Setup(x => x.OnError(It.IsAny<PublishingException>()))
                 .Verifiable();
+            
+            SetupProxyPassBehavior();
 
             var unsubscribe = _messagePublisher.Subscribe(observerMock.Object);
             await _messagePublisher.PublishAsync(messageMock.Object, CancellationToken.None);
@@ -222,6 +243,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
             batchMock.Verify(x => x.Publish(), Times.Never());
             batchMock.VerifyAll();
             observerMock.VerifyAll();
+            _behaviorMock.VerifyAll();
         }
         
         [Theory]
@@ -238,6 +260,8 @@ namespace EasyRabbitMqClient.Publisher.Tests
             observerMock.Setup(x => x.OnError(It.IsAny<PublishingException>()))
                 .Callback((Exception ex) => ex.As<PublishingException>().Batching.Should().NotBeNull())
                 .Verifiable();
+            
+            SetupProxyPassBehavior();
 
             var unsubscribe = _messagePublisher.Subscribe(observerMock.Object);
             await _messagePublisher.PublishAsync(messageMock.Object, CancellationToken.None);
@@ -249,6 +273,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
             unsubscribe.Should().NotBeNull();
             messageMock.VerifyAll();
             observerMock.VerifyAll();
+            _behaviorMock.VerifyAll();
         }
         
         [Fact]
@@ -306,6 +331,8 @@ namespace EasyRabbitMqClient.Publisher.Tests
             var observerMock = new Mock<IObserver<IMessageBatching>>();
             observerMock.Setup(x => x.OnError(It.IsAny<Exception>()))
                 .Verifiable();
+            
+            SetupProxyPassBehavior();
 
             var unsubscribe = _messagePublisher.Subscribe(observerMock.Object);
             await _messagePublisher.PublishAsync(messageMock.Object, CancellationToken.None);
@@ -315,6 +342,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
             _channelMock.VerifyAll();
             messageMock.VerifyAll();
             batchMock.VerifyAll();
+            _behaviorMock.VerifyAll();
         }
         
         [Fact]
@@ -377,6 +405,8 @@ namespace EasyRabbitMqClient.Publisher.Tests
                 .Returns(cancellationTokenSource.Token)
                 .Verifiable();
             
+            SetupProxyPassBehavior();
+            
             cancellationTokenSource.Cancel();
             await _messagePublisher.PublishAsync(messageMock.Object, CancellationToken.None);
             
@@ -388,6 +418,30 @@ namespace EasyRabbitMqClient.Publisher.Tests
             messageMock.VerifyAll();
             batchMock.Verify(x => x.Publish(), Times.Never());
             batchMock.VerifyAll();
+            _behaviorMock.VerifyAll();
+        }
+        
+        [Theory]
+        [ClassData(typeof(ExceptionData))]
+        public async Task GivenMessageWhenFailedOnBehaviorShouldCallObservers(Exception exception)
+        {
+            var messageMock = new Mock<IMessage>();
+            var observerMock = new Mock<IObserver<IMessageBatching>>();
+            
+            _behaviorMock.Setup(x => x.Execute(It.IsAny<Func<bool>>()))
+                .Throws(exception)
+                .Verifiable();
+            
+            observerMock.Setup(x => x.OnError(It.IsAny<PublishingException>()))
+                .Verifiable();
+            
+            using var subscribe = _messagePublisher.Subscribe(observerMock.Object);
+            await _messagePublisher.PublishAsync(messageMock.Object, CancellationToken.None);
+            
+            _channelMock.VerifyAll();
+            messageMock.VerifyAll();
+            observerMock.VerifyAll();
+            _behaviorMock.VerifyAll();
         }
     }
 
@@ -397,6 +451,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
         {
             yield return new object[] {new Exception()};
             yield return new object[] {new ForbiddenException(string.Empty, new Exception())};
+            yield return new object[] {new NotFoundException(string.Empty, new Exception())};
         }
 
         IEnumerator IEnumerable.GetEnumerator()

@@ -1,4 +1,3 @@
-using EasyRabbitMqClient.Abstractions;
 using EasyRabbitMqClient.Abstractions.Builders;
 using EasyRabbitMqClient.Abstractions.Models;
 using EasyRabbitMqClient.Core.Models;

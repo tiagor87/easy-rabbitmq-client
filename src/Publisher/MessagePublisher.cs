@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -30,21 +29,6 @@ namespace EasyRabbitMqClient.Publisher
             _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
             _behavior = behavior;
             _observers = new HashSet<IObserver<IMessageBatching>>();
-        }
-        
-        public MessagePublisher(IConnectionFactory connectionFactory) : this(
-            connectionFactory, null)
-        {
-        }
-
-        public MessagePublisher(RabbitMqConnectionString connectionString, IBehavior behavior) : this(
-            connectionString.CreateFactory(), behavior)
-        {
-        }
-        
-        public MessagePublisher(RabbitMqConnectionString connectionString) : this(
-            connectionString.CreateFactory(), null)
-        {
         }
 
         ~MessagePublisher()
