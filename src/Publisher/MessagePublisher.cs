@@ -120,8 +120,8 @@ namespace EasyRabbitMqClient.Publisher
         {
             const string lastException = "LastException";
             
-            var hasMessageToSend = false;
-            var failedMessages = new HashSet<IMessage>();
+            var successMessages = new HashSet<IMessage>(batching.Count);
+            var failedMessages = new HashSet<IMessage>(0);
             failedBatching = null;
             using var model = Connect().CreateModel();
             try
@@ -133,7 +133,7 @@ namespace EasyRabbitMqClient.Publisher
                 {
                     try
                     {
-                        hasMessageToSend = batch.Add(model, message) || hasMessageToSend;
+                        if (batch.Add(model, message)) successMessages.Add(message);
                     }
                     catch (Exception ex)
                     {
@@ -149,7 +149,7 @@ namespace EasyRabbitMqClient.Publisher
                 }
 
                 if (cancellationToken.IsCancellationRequested
-                    || !hasMessageToSend) return true;
+                    || !successMessages.Any()) return true;
 
                 batch.Publish();
                 model.WaitForConfirmsOrDie(batching.PublishingTimeout);
@@ -160,7 +160,7 @@ namespace EasyRabbitMqClient.Publisher
                     return true;
                 }
 
-                OnNext(new MessageBatching(batching.Except(failedMessages)));
+                OnNext(new MessageBatching(successMessages));
                 failedBatching = new MessageBatching(failedMessages, batching.PublishingTimeout);
                 return false;
             }

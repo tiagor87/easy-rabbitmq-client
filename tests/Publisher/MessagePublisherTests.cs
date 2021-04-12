@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,12 +6,12 @@ using EasyRabbitMqClient.Abstractions.Behaviors;
 using EasyRabbitMqClient.Abstractions.Models;
 using EasyRabbitMqClient.Abstractions.Publishers;
 using EasyRabbitMqClient.Core.Exceptions;
+using EasyRabbitMqClient.Core.Models;
 using EasyRabbitMqClient.Publisher.Exceptions;
 using EasyRabbitMqClient.Publisher.Tests.Fixtures;
 using FluentAssertions;
 using Moq;
 using RabbitMQ.Client;
-using RabbitMQ.Client.Exceptions;
 using Xunit;
 
 namespace EasyRabbitMqClient.Publisher.Tests
@@ -37,7 +36,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
         }
 
         [Fact]
-        public async Task GivenMessageShouldPublishAndConfirm()
+        public async Task GivenMessage_ShouldPublishAndConfirm()
         {
             var basicPropertiesMock = new Mock<IBasicProperties>();
             var batchMock = new Mock<IBasicPublishBatch>();
@@ -103,7 +102,82 @@ namespace EasyRabbitMqClient.Publisher.Tests
         }
         
         [Fact]
-        public async Task GivenMessageWhenPublishShouldNotifyObservers()
+        public async Task GivenMessage_WhenPublishMultipleMessagesAndHasFailure_ShouldNotify()
+        {
+            var basicPropertiesMock = new Mock<IBasicProperties>();
+            var batchMock = new Mock<IBasicPublishBatch>();
+            var routingMock = new Mock<IRouting>();
+            var messageMock = new Mock<IMessage>();
+            var bytes = Array.Empty<byte>();
+            const string exchange = "exchange";
+            const string routingKey = "exchange";
+            const string correlationId = "correlationId";
+            var headersMock = new Mock<IDictionary<string, object>>();
+            var observerMock = new Mock<IObserver<IMessageBatching>>();
+            
+            SetupProxyPassBehavior();
+            
+            _channelMock.Setup(x => x.CreateBasicPublishBatch())
+                .Returns(batchMock.Object)
+                .Verifiable();
+            _channelMock.Setup(x => x.CreateBasicProperties())
+                .Returns(basicPropertiesMock.Object)
+                .Verifiable();
+            _channelMock.Setup(x => x.ConfirmSelect())
+                .Verifiable();
+            _channelMock.Setup(x => x.WaitForConfirmsOrDie(It.IsAny<TimeSpan>()))
+                .Verifiable();
+            
+            routingMock.SetupGet(x => x.ExchangeName).Returns(exchange).Verifiable();
+            routingMock.SetupGet(x => x.RoutingKey).Returns(routingKey).Verifiable();
+            messageMock.SetupGet(x => x.Routing)
+                .Returns(routingMock.Object)
+                .Verifiable();
+            messageMock.Setup(x => x.CancellationToken)
+                .Returns(CancellationToken.None)
+                .Verifiable();
+            messageMock.SetupSequence(x => x.Serialize())
+                .Returns(bytes)
+                .Throws<Exception>()
+                .Returns(bytes);
+            messageMock.Setup(x => x.Equals(It.IsAny<IMessage>()))
+                .Returns(false)
+                .Verifiable();
+            messageMock.Setup(x => x.GetHeaders())
+                .Returns(headersMock.Object)
+                .Verifiable();
+            messageMock.SetupGet(x => x.CorrelationId)
+                .Returns(correlationId)
+                .Verifiable();
+            
+            
+            batchMock.Setup(x => 
+#pragma warning disable 618
+                    // New Add method is an extension and can not be overriden
+                    x.Add(
+#pragma warning restore 618
+                        exchange,
+                        routingKey,
+                        false,
+                        basicPropertiesMock.Object,
+                        bytes))
+                .Verifiable();
+            batchMock.Setup(x => x.Publish())
+                .Verifiable();
+
+            using var _ = _messagePublisher.Subscribe(observerMock.Object);
+            await _messagePublisher.PublishBatchingAsync(new MessageBatching(new [] { messageMock.Object, messageMock.Object, messageMock.Object }), CancellationToken.None);
+            
+            _channelMock.VerifyAll();
+            messageMock.VerifyAll();
+            batchMock.VerifyAll();
+            _behaviorMock.VerifyAll();
+            observerMock.Verify(x => x.OnNext(It.Is<IMessageBatching>(y => y.Count == 2)));
+            observerMock.Verify(x => x.OnError(It.Is<PublishingException>(y => y.Batching.Count == 1)));
+        }
+        
+        [Fact]
+        public async Task GivenMessage_WhenPublish_ShouldNotifyObservers()
         {
             var basicPropertiesMock = new Mock<IBasicProperties>();
             var batchMock = new Mock<IBasicPublishBatch>();
@@ -175,7 +249,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
         }
         
         [Fact]
-        public async Task GivenMessageWhenFailShouldSetExceptionAndNotPublish()
+        public async Task GivenMessage_WhenFail_ShouldSetExceptionAndNotPublish()
         {
             var batchMock = new Mock<IBasicPublishBatch>();
             var messageMock = new Mock<IMessage>();
@@ -208,7 +282,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
         }
         
         [Fact]
-        public async Task GivenMessageWhenFailShouldNotifyObservers()
+        public async Task GivenMessage_WhenFail_ShouldNotifyObservers()
         {
             var batchMock = new Mock<IBasicPublishBatch>();
             var messageMock = new Mock<IMessage>();
@@ -247,8 +321,8 @@ namespace EasyRabbitMqClient.Publisher.Tests
         }
         
         [Theory]
-        [ClassData(typeof(ExceptionData))]
-        public async Task GivenMessageWhenFailShouldCreateExceptionWithMessages(Exception exception)
+        [MemberData(nameof(GetExceptions))]
+        public async Task GivenMessage_WhenFails_ShouldCreateExceptionWithMessageBatching(Exception exception)
         {
             var messageMock = new Mock<IMessage>();
             var observerMock = new Mock<IObserver<IMessageBatching>>();
@@ -277,7 +351,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
         }
         
         [Fact]
-        public async Task GivenMessageWhenRabbitLibraryThrowShouldNotifyError()
+        public async Task GivenMessage_WhenRabbitLibraryThrow_ShouldNotifyError()
         {
             var basicPropertiesMock = new Mock<IBasicProperties>();
             var batchMock = new Mock<IBasicPublishBatch>();
@@ -346,7 +420,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
         }
         
         [Fact]
-        public void GivenMessageWhenDisposeShouldNotifyObservers()
+        public void GivenMessage_WhenDispose_ShouldNotifyObservers()
         {
             var observerMock = new Mock<IObserver<IMessageBatching>>();
             
@@ -361,7 +435,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
         }
         
         [Fact]
-        public async Task GivenMessageWhenDisposeShouldNotAllowPublishing()
+        public async Task GivenMessage_WhenDispose_ShouldNotAllowPublishing()
         {
             var messageMock = new Mock<IMessage>();
             
@@ -373,7 +447,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
         }
         
         [Fact]
-        public void GivenSubscriberWhenUnsubscribeShouldRemoveObserver()
+        public void GivenSubscriberWhenUnsubscribe_ShouldRemoveObserver()
         {
             var observerMock = new Mock<IObserver<IMessageBatching>>();
             
@@ -389,7 +463,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
         }
         
         [Fact]
-        public async Task GivenMessageWhenCancellationRequestedShouldSkipMessage()
+        public async Task GivenMessage_WhenCancellationRequested_ShouldSkipMessage()
         {
             var batchMock = new Mock<IBasicPublishBatch>();
             var messageMock = new Mock<IMessage>();
@@ -422,8 +496,8 @@ namespace EasyRabbitMqClient.Publisher.Tests
         }
         
         [Theory]
-        [ClassData(typeof(ExceptionData))]
-        public async Task GivenMessageWhenFailedOnBehaviorShouldCallObservers(Exception exception)
+        [MemberData(nameof(GetExceptions))]
+        public async Task GivenMessage_WhenFailedOnBehavior_ShouldCallObservers(Exception exception)
         {
             var messageMock = new Mock<IMessage>();
             var observerMock = new Mock<IObserver<IMessageBatching>>();
@@ -443,20 +517,23 @@ namespace EasyRabbitMqClient.Publisher.Tests
             observerMock.VerifyAll();
             _behaviorMock.VerifyAll();
         }
-    }
-
-    public class ExceptionData : IEnumerable<object[]>
-    {
-        public IEnumerator<object[]> GetEnumerator()
+        
+        public static IEnumerable<object[]> GetExceptions()
         {
-            yield return new object[] {new Exception()};
-            yield return new object[] {new ForbiddenException(string.Empty, new Exception())};
-            yield return new object[] {new NotFoundException(string.Empty, new Exception())};
-        }
-
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
+            yield return new object[]
+            {
+                new Exception()
+            };
+            
+            yield return new object[]
+            {
+                new ForbiddenException(string.Empty, new Exception())
+            };
+            
+            yield return new object[]
+            {
+                new NotFoundException(string.Empty, new Exception())
+            };
         }
     }
 }
