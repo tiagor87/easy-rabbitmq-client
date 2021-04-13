@@ -4,13 +4,15 @@ using EasyRabbitMqClient.Abstractions.Publishers;
 
 namespace EasyRabbitMqClient.Abstractions.Builders
 {
-    public interface IMessageBuilder
+    public interface IMessageBuilder<TMessage> where TMessage : IMessage
     {
-        IMessageBuilder WithMessage(object message);
-        IMessageBuilder WithCorrelationId(string correlationId);
-        IMessageBuilder WithCancellationToken(CancellationToken cancellationToken);
-        IMessageBuilder WithSerializer<T>() where T : IPublisherSerializer;
-        IMessageBuilder WithRouting(string exchangeName, string routingKey);
-        IMessage Build();
+        IMessagePublisher Publisher { get; }
+        IMessageBuilder<TMessage> ForPublisher(IMessagePublisher publisher);
+        IMessageBuilder<TMessage> WithMessage(object message);
+        IMessageBuilder<TMessage> WithCorrelationId(string correlationId);
+        IMessageBuilder<TMessage> WithCancellationToken(CancellationToken cancellationToken);
+        IMessageBuilder<TMessage> WithSerializer(IPublisherSerializer serializer);
+        IMessageBuilder<TMessage> WithRouting(string exchangeName, string routingKey);
+        TMessage Build();
     }
 }

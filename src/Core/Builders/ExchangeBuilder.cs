@@ -12,7 +12,6 @@ namespace EasyRabbitMqClient.Core.Builders
         private string _type;
         private bool _isDurable;
         private bool _autoDelete;
-        private bool _isInternal;
 
         public IExchangeBuilder WithName(string name)
         {
@@ -23,8 +22,8 @@ namespace EasyRabbitMqClient.Core.Builders
         public IExchangeBuilder WithFallbackExchange(string name)
         {
             _fallbackExchange = new ExchangeBuilder()
+                .AsDirect()
                 .WithName(_name)
-                .AsInternal()
                 .Build();
             return this;
         }
@@ -71,21 +70,9 @@ namespace EasyRabbitMqClient.Core.Builders
             return this;
         }
 
-        public IExchangeBuilder AsInternal()
-        {
-            _isInternal = true;
-            return this;
-        }
-
-        public IExchangeBuilder AsPublic()
-        {
-            _isInternal = false;
-            return this;
-        }
-
         public IExchange Build()
         {
-            return new Exchange(_name, _type, _isDurable, _autoDelete, _isInternal, _fallbackExchange);
+            return new Exchange(_name, _type, _isDurable, _autoDelete, _fallbackExchange);
         }
     }
 }

@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using EasyRabbitMqClient.Abstractions.Behaviors;
+using EasyRabbitMqClient.Abstractions.Builders;
 using EasyRabbitMqClient.Abstractions.Models;
 using EasyRabbitMqClient.Abstractions.Publishers;
+using EasyRabbitMqClient.Core.Builders;
 using EasyRabbitMqClient.Core.Exceptions;
 using EasyRabbitMqClient.Core.Models;
 using EasyRabbitMqClient.Publisher.Exceptions;
@@ -99,6 +101,16 @@ namespace EasyRabbitMqClient.Publisher.Tests
             messageMock.VerifyAll();
             batchMock.VerifyAll();
             _behaviorMock.VerifyAll();
+        }
+        
+        [Fact]
+        public void GivenMessage_WhenCreateNewMessage_ShouldReturnBuilder()
+        {
+            var messageBuilder = _messagePublisher.NewMessage();
+
+            messageBuilder.Publisher.Should().Be(_messagePublisher);
+            messageBuilder.Should().NotBeNull();
+            messageBuilder.Should().BeOfType<MessageBuilder>();
         }
         
         [Fact]

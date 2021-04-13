@@ -13,8 +13,6 @@ namespace EasyRabbitMqClient.Abstractions.Builders
         IExchangeBuilder AsTransient();
         IExchangeBuilder WithSelfDestruction();
         IExchangeBuilder WithoutSelfDestruction();
-        IExchangeBuilder AsInternal();
-        IExchangeBuilder AsPublic();
         IExchange Build();
     }
 }

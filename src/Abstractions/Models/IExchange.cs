@@ -6,7 +6,6 @@ namespace EasyRabbitMqClient.Abstractions.Models
         string Type { get; }
         bool IsDurable { get; }
         bool IsAutoDelete { get; }
-        bool IsInternal { get; }
         IExchange FallbackExchange { get; }
     }
 }

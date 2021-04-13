@@ -7,53 +7,56 @@ using EasyRabbitMqClient.Core.Models;
 
 namespace EasyRabbitMqClient.Core.Builders
 {
-    public class MessageBuilder : IMessageBuilder
+    public class MessageBuilder : IMessageBuilder<IPublishingMessage>
     {
-        private readonly IServiceProvider _serviceProvider;
+        private IMessagePublisher _publisher;
         private object _message;
         private CancellationToken _cancellationToken;
         private IPublisherSerializer _serializer;
         private IRouting _routing;
         private string _correlationId;
-
-        public MessageBuilder(IServiceProvider serviceProvider)
-        {
-            _serviceProvider = serviceProvider;
-        }
         
-        public IMessageBuilder WithMessage(object message)
+        public IMessagePublisher Publisher => _publisher;
+
+        public IMessageBuilder<IPublishingMessage> ForPublisher(IMessagePublisher publisher)
+        {
+            _publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
+            return this;
+        }
+
+        public IMessageBuilder<IPublishingMessage> WithMessage(object message)
         {
             _message = message;
             return this;
         }
 
-        public IMessageBuilder WithCorrelationId(string correlationId)
+        public IMessageBuilder<IPublishingMessage> WithCorrelationId(string correlationId)
         {
             _correlationId = correlationId;
             return this;
         }
 
-        public IMessageBuilder WithCancellationToken(CancellationToken cancellationToken)
+        public IMessageBuilder<IPublishingMessage> WithCancellationToken(CancellationToken cancellationToken)
         {
             _cancellationToken = cancellationToken;
             return this;
         }
 
-        public IMessageBuilder WithSerializer<T>() where T : IPublisherSerializer
+        public IMessageBuilder<IPublishingMessage> WithSerializer(IPublisherSerializer serializer)
         {
-            _serializer = (IPublisherSerializer) _serviceProvider.GetService(typeof(T));
+            _serializer = serializer;
             return this;
         }
 
-        public IMessageBuilder WithRouting(string exchangeName, string routingKey)
+        public IMessageBuilder<IPublishingMessage> WithRouting(string exchangeName, string routingKey)
         {
             _routing = new Routing(exchangeName, routingKey);
             return this;
         }
 
-        public IMessage Build()
+        public IPublishingMessage Build()
         {
-            var message = new Message(_message, _serializer, _routing, _correlationId, _cancellationToken);
+            var message = new PublishingMessage(_publisher, _message, _serializer, _routing, _correlationId, _cancellationToken);
             return message;
         }
     }

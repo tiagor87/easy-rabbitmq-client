@@ -4,8 +4,10 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using EasyRabbitMqClient.Abstractions.Behaviors;
+using EasyRabbitMqClient.Abstractions.Builders;
 using EasyRabbitMqClient.Abstractions.Models;
 using EasyRabbitMqClient.Abstractions.Publishers;
+using EasyRabbitMqClient.Core.Builders;
 using EasyRabbitMqClient.Core.Exceptions;
 using EasyRabbitMqClient.Core.Extensions;
 using EasyRabbitMqClient.Core.Models;
@@ -41,6 +43,12 @@ namespace EasyRabbitMqClient.Publisher
         {
             Dispose(true);
             GC.SuppressFinalize(this);
+        }
+
+        public IMessageBuilder<IPublishingMessage> NewMessage()
+        {
+            return new MessageBuilder()
+                .ForPublisher(this);
         }
 
         public async Task PublishAsync(IMessage message, CancellationToken cancellationToken)

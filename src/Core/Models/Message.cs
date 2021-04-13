@@ -11,13 +11,13 @@ namespace EasyRabbitMqClient.Core.Models
         private readonly object _message;
         private readonly IDictionary<string, object> _headers;
         private readonly IPublisherSerializer _serializer;
-        
+
         public Message(object message, IPublisherSerializer serializer, IRouting routing, string correlationId = default, CancellationToken cancellationToken = default)
         {
             CreatedAt = DateTime.UtcNow;
-            Routing = routing;
+            Routing = routing ?? throw new ArgumentNullException(nameof(routing));
             CancellationToken = cancellationToken;
-            _serializer = serializer;
+            _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
             CorrelationId = correlationId ?? Guid.NewGuid().ToString();
             _message = message;
             _headers = new Dictionary<string, object>()
