@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -7,6 +8,7 @@ using EasyRabbitMqClient.Abstractions.Behaviors;
 using EasyRabbitMqClient.Abstractions.Models;
 using EasyRabbitMqClient.Abstractions.Publishers;
 using EasyRabbitMqClient.Core.Exceptions;
+using EasyRabbitMqClient.Core.Extensions;
 using EasyRabbitMqClient.Core.Models;
 using EasyRabbitMqClient.Publisher.Exceptions;
 using EasyRabbitMqClient.Publisher.Extensions;
@@ -20,14 +22,14 @@ namespace EasyRabbitMqClient.Publisher
         private volatile bool _disposed;
         private IConnection _connection;
         private readonly IConnectionFactory _connectionFactory;
-        private readonly IBehavior _behavior;
+        private readonly ICollection<IBehavior> _behaviors;
         private readonly HashSet<IObserver<IMessageBatching>> _observers;
         private static object _sync = new();
 
-        public MessagePublisher(IConnectionFactory connectionFactory, IBehavior behavior)
+        public MessagePublisher(IConnectionFactory connectionFactory, params IBehavior[] behaviors)
         {
             _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
-            _behavior = behavior;
+            _behaviors = behaviors ?? Array.Empty<IBehavior>();
             _observers = new HashSet<IObserver<IMessageBatching>>();
         }
 
@@ -99,7 +101,7 @@ namespace EasyRabbitMqClient.Publisher
             
             try
             {
-                var result = _behavior?.Execute(Execute) ?? Execute();
+                var result = _behaviors.Execute(Execute);
 
                 if (!result)
                 {
