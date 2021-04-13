@@ -70,9 +70,7 @@ namespace EasyRabbitMqClient.Publisher
 
         private void Dispose(bool disposing)
         {
-            if (_disposed) return;
-
-            if (disposing)
+            if (!_disposed && disposing)
             {
                 _connection?.Dispose();
                 OnCompleted();

@@ -23,11 +23,12 @@ namespace EasyRabbitMqClient.Publisher.Tests
         private readonly IMessagePublisher _messagePublisher;
         private readonly Mock<IModel> _channelMock;
         private readonly Mock<IBehavior> _behaviorMock;
+        private readonly Mock<IConnection> _connectionMock;
 
         public MessagePublisherTests(ConnectionFixture connectionFixture)
         {
             _behaviorMock = new Mock<IBehavior>();
-            _messagePublisher = new MessagePublisher(connectionFixture.GetConnectionFactory(out _channelMock), _behaviorMock.Object);
+            _messagePublisher = new MessagePublisher(connectionFixture.GetConnectionFactory(out _connectionMock, out _channelMock), _behaviorMock.Object);
         }
 
         private void SetupProxyPassBehavior()
@@ -35,6 +36,74 @@ namespace EasyRabbitMqClient.Publisher.Tests
             _behaviorMock.Setup(x => x.Execute(It.IsAny<Func<bool>>()))
                 .Returns((Func<bool> action) => action())
                 .Verifiable();
+        }
+        
+        [Fact]
+        public async Task GivenMessage_ShouldNotCreateConnectionTwice()
+        {
+            var basicPropertiesMock = new Mock<IBasicProperties>();
+            var batchMock = new Mock<IBasicPublishBatch>();
+            var routingMock = new Mock<IRouting>();
+            var messageMock = new Mock<IMessage>();
+            var bytes = Array.Empty<byte>();
+            const string exchange = "exchange";
+            const string routingKey = "exchange";
+            const string correlationId = "correlationId";
+            var headersMock = new Mock<IDictionary<string, object>>();
+            SetupProxyPassBehavior();
+            
+            _channelMock.Setup(x => x.CreateBasicPublishBatch())
+                .Returns(batchMock.Object)
+                .Verifiable();
+            _channelMock.Setup(x => x.CreateBasicProperties())
+                .Returns(basicPropertiesMock.Object)
+                .Verifiable();
+            _channelMock.Setup(x => x.ConfirmSelect())
+                .Verifiable();
+            _channelMock.Setup(x => x.WaitForConfirmsOrDie(It.IsAny<TimeSpan>()))
+                .Verifiable();
+            
+            routingMock.SetupGet(x => x.ExchangeName).Returns(exchange).Verifiable();
+            routingMock.SetupGet(x => x.RoutingKey).Returns(routingKey).Verifiable();
+            messageMock.SetupGet(x => x.Routing)
+                .Returns(routingMock.Object)
+                .Verifiable();
+            messageMock.Setup(x => x.CancellationToken)
+                .Returns(CancellationToken.None)
+                .Verifiable();
+            messageMock.Setup(x => x.Serialize())
+                .Returns(bytes)
+                .Verifiable();
+            messageMock.Setup(x => x.GetHeaders())
+                .Returns(headersMock.Object)
+                .Verifiable();
+            messageMock.SetupGet(x => x.CorrelationId)
+                .Returns(correlationId)
+                .Verifiable();
+            
+            
+            batchMock.Setup(x => 
+#pragma warning disable 618
+                    // New Add method is an extension and can not be overriden
+                    x.Add(
+#pragma warning restore 618
+                        exchange,
+                        routingKey,
+                        false,
+                        basicPropertiesMock.Object,
+                        bytes))
+                .Verifiable();
+            batchMock.Setup(x => x.Publish())
+                .Verifiable();
+            
+            await _messagePublisher.PublishAsync(messageMock.Object, CancellationToken.None);
+            await _messagePublisher.PublishAsync(messageMock.Object, CancellationToken.None);
+            
+            _channelMock.VerifyAll();
+            messageMock.VerifyAll();
+            batchMock.VerifyAll();
+            _behaviorMock.VerifyAll();
+            _connectionMock.Verify(x => x.CreateModel(), Times.Exactly(2));
         }
 
         [Fact]

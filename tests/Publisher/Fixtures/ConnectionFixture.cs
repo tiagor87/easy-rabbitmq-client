@@ -5,10 +5,10 @@ namespace EasyRabbitMqClient.Publisher.Tests.Fixtures
 {
     public class ConnectionFixture
     {
-        public IConnectionFactory GetConnectionFactory(out Mock<IModel> channelMock)
+        public IConnectionFactory GetConnectionFactory(out Mock<IConnection> connectionMock, out Mock<IModel> channelMock)
         {
             channelMock = new Mock<IModel>();
-            var connectionMock = new Mock<IConnection>();
+            connectionMock = new Mock<IConnection>();
             connectionMock.Setup(x => x.CreateModel())
                 .Returns(channelMock.Object);
             var connectionFactoryMock = new Mock<IConnectionFactory>();
