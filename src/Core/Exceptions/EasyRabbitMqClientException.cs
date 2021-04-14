@@ -1,4 +1,5 @@
 using System;
+using EasyRabbitMqClient.Abstractions.Models;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
 
@@ -10,6 +11,11 @@ namespace EasyRabbitMqClient.Core.Exceptions
         {
         }
 
+        protected EasyRabbitMqClientException(IMessageBatching batching, string message, Exception exception)
+        {
+            Batching = batching;
+        }
+
         public static EasyRabbitMqClientException Create(OperationInterruptedException ex)
         {
             return ex.ShutdownReason.ReplyCode switch
@@ -19,5 +25,7 @@ namespace EasyRabbitMqClient.Core.Exceptions
                 _ => new EasyRabbitMqClientException(ex.ShutdownReason.ReplyText, ex)
             };
         }
+
+        public IMessageBatching Batching { get; }
     }
 }

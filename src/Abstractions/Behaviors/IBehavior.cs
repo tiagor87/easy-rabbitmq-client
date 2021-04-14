@@ -1,9 +1,13 @@
 using System;
+using System.Threading;
+using System.Threading.Tasks;
+using EasyRabbitMqClient.Abstractions.Models;
 
 namespace EasyRabbitMqClient.Abstractions.Behaviors
 {
-    public interface IBehavior
+    public interface IBehavior : IDisposable
     {
-        bool Execute(Func<bool> action);
+        Task ExecuteAsync(IMessageBatching batching, Func<IMessageBatching, CancellationToken, Task> next,
+            CancellationToken cancellationToken);
     }
 }

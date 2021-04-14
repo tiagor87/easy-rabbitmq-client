@@ -6,6 +6,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Abstractions\EasyRabbitMqClient.Abstractions.csproj" />
+    <ProjectReference Include="..\Core\EasyRabbitMqClient.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

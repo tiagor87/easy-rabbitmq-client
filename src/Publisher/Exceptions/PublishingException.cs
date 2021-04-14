@@ -6,15 +6,12 @@ namespace EasyRabbitMqClient.Publisher.Exceptions
 {
     public class PublishingException : EasyRabbitMqClientException
     {
-        public PublishingException(IMessageBatching batching, string message, Exception innerException) : base(message, innerException)
+        public PublishingException(IMessageBatching batching, string message, Exception innerException) : base(batching, message, innerException)
         {
-            Batching = batching;
         }
         
         public PublishingException(IMessageBatching batching, Exception innerException) : this(batching, "Failed to publish batching.", innerException)
         {
         }
-
-        public IMessageBatching Batching { get; }
     }
 }

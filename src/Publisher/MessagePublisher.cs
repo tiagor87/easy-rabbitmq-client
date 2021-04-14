@@ -7,30 +7,24 @@ using EasyRabbitMqClient.Abstractions.Behaviors;
 using EasyRabbitMqClient.Abstractions.Builders;
 using EasyRabbitMqClient.Abstractions.Models;
 using EasyRabbitMqClient.Abstractions.Publishers;
+using EasyRabbitMqClient.Core.Behaviors;
 using EasyRabbitMqClient.Core.Builders;
 using EasyRabbitMqClient.Core.Exceptions;
-using EasyRabbitMqClient.Core.Extensions;
 using EasyRabbitMqClient.Core.Models;
 using EasyRabbitMqClient.Publisher.Exceptions;
-using EasyRabbitMqClient.Publisher.Extensions;
 using EasyRabbitMqClient.Publisher.Observers;
-using RabbitMQ.Client;
 
 namespace EasyRabbitMqClient.Publisher
 {
     public sealed class MessagePublisher : IMessagePublisher
     {
         private volatile bool _disposed;
-        private IConnection _connection;
-        private readonly IConnectionFactory _connectionFactory;
-        private readonly ICollection<IBehavior> _behaviors;
+        private readonly IBehavior _behavior;
         private readonly HashSet<IObserver<IMessageBatching>> _observers;
-        private static object _sync = new();
 
-        public MessagePublisher(IConnectionFactory connectionFactory, params IBehavior[] behaviors)
+        public MessagePublisher(IPublisherBehavior publisherBehavior, params IBehavior[] behaviors)
         {
-            _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
-            _behaviors = behaviors ?? Array.Empty<IBehavior>();
+            _behavior = AggregateBehavior.Create(publisherBehavior, behaviors);
             _observers = new HashSet<IObserver<IMessageBatching>>();
         }
 
@@ -56,10 +50,30 @@ namespace EasyRabbitMqClient.Publisher
             var batching = new MessageBatching(new [] { message });
             await PublishBatchingAsync(batching, cancellationToken);
         }
-
-        public async Task PublishBatchingAsync(IMessageBatching messageBatch, CancellationToken cancellationToken)
+        
+        public async Task PublishBatchingAsync(IMessageBatching batching, CancellationToken cancellationToken =  default)
         {
-            await Task.Factory.StartNew(() => PublishBatching(messageBatch, cancellationToken), cancellationToken);
+            if (_disposed) throw new ObjectDisposedException(nameof(MessagePublisher));
+
+            try
+            {
+                await _behavior.ExecuteAsync(batching, null, cancellationToken);
+                OnNext(batching);
+            }
+            catch (PublishingException ex)
+            {
+                OnError(ex);
+                var success = new MessageBatching(batching.Except(ex.Batching));
+                if (success.Any()) OnNext(success);
+            }
+            catch (EasyRabbitMqClientException ex)
+            {
+                OnError(new PublishingException(batching, ex.Message, ex));
+            }
+            catch (Exception ex)
+            {
+                OnError(new PublishingException(batching, ex));
+            }
         }
         
         public IDisposable Subscribe(IObserver<IMessageBatching> observer)
@@ -72,109 +86,11 @@ namespace EasyRabbitMqClient.Publisher
         {
             if (!_disposed && disposing)
             {
-                _connection?.Dispose();
+                _behavior.Dispose();
                 OnCompleted();
             }
 
             _disposed = true;
-        }
-
-        private IConnection Connect()
-        {
-            if (_connection is not null)
-            {
-                return _connection;
-            }
-
-            lock (_sync)
-            {
-                return _connection ??= _connectionFactory.CreateConnection();
-            }
-        }
-
-        private void PublishBatching(IMessageBatching batching, CancellationToken cancellationToken =  default)
-        {
-            if (_disposed) throw new ObjectDisposedException(nameof(MessagePublisher));
-
-            bool Execute()
-            {
-                if (TryPublishMessages(batching, out var failed, cancellationToken)) return true;
-                
-                batching = failed;
-                return false;
-            }
-            
-            try
-            {
-                var result = _behaviors.Execute(Execute);
-
-                if (!result)
-                {
-                    OnError(new PublishingException(batching, "A few messages was not published.", null));
-                }
-            }
-            catch (EasyRabbitMqClientException ex)
-            {
-                OnError(new PublishingException(batching, ex.Message, ex));
-            }
-            catch (Exception ex)
-            {
-                OnError(new PublishingException(batching, ex));
-            }
-        }
-        
-        private bool TryPublishMessages(IMessageBatching batching, out IMessageBatching failedBatching, CancellationToken cancellationToken)
-        {
-            const string lastException = "LastException";
-            
-            var successMessages = new HashSet<IMessage>(batching.Count);
-            var failedMessages = new HashSet<IMessage>(0);
-            failedBatching = null;
-            using var model = Connect().CreateModel();
-            try
-            {
-                model.ConfirmSelect();
-
-                var batch = model.CreateBasicPublishBatch();
-                foreach (var message in batching)
-                {
-                    try
-                    {
-                        if (batch.Add(model, message)) successMessages.Add(message);
-                    }
-                    catch (Exception ex)
-                    {
-                        message.AddHeader(lastException, ex.ToString());
-                        failedMessages.Add(message);
-                    }
-                }
-                    
-                if (batching.Count == failedMessages.Count)
-                {
-                    failedBatching = new MessageBatching(failedMessages, batching.PublishingTimeout);
-                    return false;
-                }
-
-                if (cancellationToken.IsCancellationRequested
-                    || !successMessages.Any()) return true;
-
-                batch.Publish();
-                model.WaitForConfirmsOrDie(batching.PublishingTimeout);
-                    
-                if (!failedMessages.Any())
-                {
-                    OnNext(batching);
-                    return true;
-                }
-
-                OnNext(new MessageBatching(successMessages));
-                failedBatching = new MessageBatching(failedMessages, batching.PublishingTimeout);
-                return false;
-            }
-            finally
-            {
-                model.Close();
-            }
         }
         
         private void OnNext(IMessageBatching batching)
