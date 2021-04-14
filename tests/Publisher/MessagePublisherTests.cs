@@ -9,19 +9,18 @@ using EasyRabbitMqClient.Core.Builders;
 using EasyRabbitMqClient.Core.Exceptions;
 using EasyRabbitMqClient.Core.Models;
 using EasyRabbitMqClient.Publisher.Exceptions;
-using EasyRabbitMqClient.Publisher.Tests.Fixtures;
 using FluentAssertions;
 using Moq;
 using Xunit;
 
 namespace EasyRabbitMqClient.Publisher.Tests
 {
-    public class MessagePublisherTests : IClassFixture<ConnectionFixture>
+    public class MessagePublisherTests
     {
         private readonly IMessagePublisher _messagePublisher;
         private readonly Mock<IPublisherBehavior> _behaviorMock;
 
-        public MessagePublisherTests(ConnectionFixture connectionFixture)
+        public MessagePublisherTests()
         {
             _behaviorMock = new Mock<IPublisherBehavior>();
             _messagePublisher = new MessagePublisher(_behaviorMock.Object);
