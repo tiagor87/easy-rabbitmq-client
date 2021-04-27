@@ -12,9 +12,10 @@ using RabbitMQ.Client;
 
 namespace EasyRabbitMqClient.Publisher.Behaviors
 {
-    public class RabbitMqPublisher : PublisherBehaviorBase
+    public class RabbitMqPublisher : IPublisherBehavior
     {
         private readonly IConnectionFactory _connectionFactory;
+        private bool _disposed;
         private IConnection _connection;
         private static object _sync = new();
 
@@ -22,8 +23,13 @@ namespace EasyRabbitMqClient.Publisher.Behaviors
         {
             _connectionFactory = connectionFactory;
         }
+
+        ~RabbitMqPublisher()
+        {
+            Dispose(false);
+        }
         
-        protected override Task PublishAsync(IMessageBatching batching, CancellationToken cancellationToken)
+        public Task PublishAsync(IMessageBatching batching, CancellationToken cancellationToken)
         {
             const string lastException = "LastException";
             
@@ -72,9 +78,20 @@ namespace EasyRabbitMqClient.Publisher.Behaviors
             }
         }
 
-        protected override void OnDispose()
+        public void Dispose()
         {
-            _connection?.Dispose();
+            Dispose(true);
+            GC.SuppressFinalize(this);
+        }
+
+        private void Dispose(bool disposing)
+        {
+            if (!_disposed && disposing)
+            {
+                _connection?.Dispose();
+            }
+
+            _disposed = true;
         }
         
         private IConnection Connect()

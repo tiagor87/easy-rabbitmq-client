@@ -22,12 +22,12 @@ namespace EasyRabbitMqClient.Publisher.Tests.Behaviors
     {
         private readonly IMessagePublisher _messagePublisher;
         private readonly Mock<IModel> _channelMock;
-        private readonly Mock<IPublisherBehavior> _behaviorMock;
+        private readonly Mock<IBehavior> _behaviorMock;
         private readonly Mock<IConnection> _connectionMock;
 
         public RabbitMqPublisherTests(ConnectionFixture connectionFixture)
         {
-            _behaviorMock = new Mock<IPublisherBehavior>();
+            _behaviorMock = new Mock<IBehavior>();
             _messagePublisher = new MessagePublisher(new RabbitMqPublisher(connectionFixture.GetConnectionFactory(out _connectionMock, out _channelMock)), _behaviorMock.Object);
         }
 

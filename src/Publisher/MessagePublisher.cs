@@ -11,6 +11,7 @@ using EasyRabbitMqClient.Core.Behaviors;
 using EasyRabbitMqClient.Core.Builders;
 using EasyRabbitMqClient.Core.Exceptions;
 using EasyRabbitMqClient.Core.Models;
+using EasyRabbitMqClient.Publisher.Behaviors;
 using EasyRabbitMqClient.Publisher.Exceptions;
 using EasyRabbitMqClient.Publisher.Observers;
 
@@ -22,9 +23,9 @@ namespace EasyRabbitMqClient.Publisher
         private readonly IBehavior _behavior;
         private readonly HashSet<IObserver<IMessageBatching>> _observers;
 
-        public MessagePublisher(IPublisherBehavior publisherBehavior, params IBehavior[] behaviors)
+        public MessagePublisher(IPublisherBehavior publisher, params IBehavior[] behaviors)
         {
-            _behavior = AggregateBehavior.Create(publisherBehavior, behaviors);
+            _behavior = AggregateBehavior.Create(new PublisherBehaviorWrapper(publisher), behaviors);
             _observers = new HashSet<IObserver<IMessageBatching>>();
         }
 

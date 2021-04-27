@@ -18,34 +18,27 @@ namespace EasyRabbitMqClient.Publisher.Tests
     public class MessagePublisherTests
     {
         private readonly IMessagePublisher _messagePublisher;
-        private readonly Mock<IPublisherBehavior> _behaviorMock;
+        private readonly Mock<IPublisherBehavior> _publisherMock;
 
         public MessagePublisherTests()
         {
-            _behaviorMock = new Mock<IPublisherBehavior>();
-            _messagePublisher = new MessagePublisher(_behaviorMock.Object);
-        }
-
-        private void SetupProxyPassBehavior()
-        {
-            _behaviorMock.Setup(x =>
-                    x.ExecuteAsync(
-                        It.IsAny<IMessageBatching>(),
-                        It.IsAny<Func<IMessageBatching, CancellationToken, Task>>(),
-                        It.IsAny<CancellationToken>()))
-                .Returns((IMessageBatching batching, Func<IMessageBatching, CancellationToken, Task> action, CancellationToken cancellationToken) => action(batching, cancellationToken))
-                .Verifiable();
+            _publisherMock = new Mock<IPublisherBehavior>();
+            _messagePublisher = new MessagePublisher(_publisherMock.Object);
         }
 
         [Fact]
-        public async Task GivenMessage_ShouldPublishAndConfirm()
+        public async Task GivenMessage_ShouldPublish()
         {
+            _publisherMock.Setup(x => x.PublishAsync(It.IsAny<IMessageBatching>(),
+                It.IsAny<CancellationToken>()))
+                .Returns(Task.CompletedTask)
+                .Verifiable();
+            
             var messageMock = new Mock<IMessage>();
-            SetupProxyPassBehavior();
             
             await _messagePublisher.PublishAsync(messageMock.Object, CancellationToken.None);
             
-            _behaviorMock.VerifyAll();
+            _publisherMock.VerifyAll();
         }
         
         [Fact]
@@ -64,10 +57,9 @@ namespace EasyRabbitMqClient.Publisher.Tests
             var messageMock = new Mock<IMessage>();
             var observerMock = new Mock<IObserver<IMessageBatching>>();
             
-            _behaviorMock.Setup(x =>
-                    x.ExecuteAsync(
+            _publisherMock.Setup(x =>
+                    x.PublishAsync(
                         It.IsAny<IMessageBatching>(),
-                        It.IsAny<Func<IMessageBatching, CancellationToken, Task>>(),
                         It.IsAny<CancellationToken>()))
                 .Throws(new PublishingException(new MessageBatching(new []{ messageMock.Object }), new Exception()))
                 .Verifiable();
@@ -81,7 +73,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
             await _messagePublisher.PublishBatchingAsync(new MessageBatching(new [] { messageMock.Object, messageMock.Object, messageMock.Object }), CancellationToken.None);
             
             messageMock.VerifyAll();
-            _behaviorMock.VerifyAll();
+            _publisherMock.VerifyAll();
             observerMock.Verify(x => x.OnNext(It.Is<IMessageBatching>(y => y.Count == 2)));
             observerMock.Verify(x => x.OnError(It.Is<PublishingException>(y => y.Batching.Count == 1)));
         }
@@ -92,11 +84,8 @@ namespace EasyRabbitMqClient.Publisher.Tests
             var messageMock = new Mock<IMessage>();
             var observerMock = new Mock<IObserver<IMessageBatching>>();
             
-            _behaviorMock.Setup(x =>
-                    x.ExecuteAsync(
-                        It.IsAny<IMessageBatching>(),
-                        It.IsAny<Func<IMessageBatching, CancellationToken, Task>>(),
-                        It.IsAny<CancellationToken>()))
+            _publisherMock.Setup(x => x.PublishAsync(It.IsAny<IMessageBatching>(),
+                    It.IsAny<CancellationToken>()))
                 .Returns(Task.CompletedTask)
                 .Verifiable();
 
@@ -104,7 +93,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
             await _messagePublisher.PublishBatchingAsync(new MessageBatching(new [] { messageMock.Object, messageMock.Object, messageMock.Object }), CancellationToken.None);
             
             messageMock.VerifyAll();
-            _behaviorMock.VerifyAll();
+            _publisherMock.VerifyAll();
             observerMock.Verify(x => x.OnNext(It.Is<IMessageBatching>(y => y.Count == 3)));
         }
         
@@ -115,10 +104,9 @@ namespace EasyRabbitMqClient.Publisher.Tests
             var messageMock = new Mock<IMessage>();
             var observerMock = new Mock<IObserver<IMessageBatching>>();
             
-            _behaviorMock.Setup(x =>
-                    x.ExecuteAsync(
+            _publisherMock.Setup(x =>
+                    x.PublishAsync(
                         It.IsAny<IMessageBatching>(),
-                        It.IsAny<Func<IMessageBatching, CancellationToken, Task>>(),
                         It.IsAny<CancellationToken>()))
                 .Throws(exception)
                 .Verifiable();
@@ -127,7 +115,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
             await _messagePublisher.PublishAsync(messageMock.Object, CancellationToken.None);
             
             messageMock.VerifyAll();
-            _behaviorMock.VerifyAll();
+            _publisherMock.VerifyAll();
             observerMock.Verify(x => x.OnError(It.Is<PublishingException>(y => y.Batching.Count == 1)));
         }
         
@@ -181,10 +169,9 @@ namespace EasyRabbitMqClient.Publisher.Tests
             var messageMock = new Mock<IMessage>();
             var observerMock = new Mock<IObserver<IMessageBatching>>();
             
-            _behaviorMock.Setup(x =>
-                    x.ExecuteAsync(
+            _publisherMock.Setup(x =>
+                    x.PublishAsync(
                         It.IsAny<IMessageBatching>(),
-                        It.IsAny<Func<IMessageBatching, CancellationToken, Task>>(),
                         It.IsAny<CancellationToken>()))
                 .Throws(exception)
                 .Verifiable();
@@ -197,7 +184,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
             
             messageMock.VerifyAll();
             observerMock.VerifyAll();
-            _behaviorMock.VerifyAll();
+            _publisherMock.VerifyAll();
         }
         
         public static IEnumerable<object[]> GetExceptions()
