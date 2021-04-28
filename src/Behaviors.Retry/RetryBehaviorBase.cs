@@ -2,17 +2,17 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using EasyRabbitMqClient.Abstractions.Behaviors;
-using EasyRabbitMqClient.Abstractions.Models;
+using EasyRabbitMqClient.Abstractions.Publishers.Models;
 using EasyRabbitMqClient.Core.Exceptions;
 using Polly;
 using Polly.Retry;
 
 namespace EasyRabbitMqClient.Behaviors.Retry
 {
-    public abstract class RetryBehaviorBase : IBehavior
+    public abstract class RetryBehaviorBase : IBehavior<IPublisherMessageBatching>
     {
-        private bool _disposed;
         private readonly AsyncRetryPolicy _retryPolicy;
+        private bool _disposed;
 
         protected RetryBehaviorBase(int? maxAttempts = null)
         {
@@ -21,9 +21,8 @@ namespace EasyRabbitMqClient.Behaviors.Retry
                 .WaitAndRetryAsync(maxAttempts ?? int.MaxValue, GetDelayForAttempt);
         }
 
-        protected abstract TimeSpan GetDelayForAttempt(int arg);
-
-        public async Task ExecuteAsync(IMessageBatching batching, Func<IMessageBatching, CancellationToken, Task> next, CancellationToken cancellationToken)
+        public async Task ExecuteAsync(IPublisherMessageBatching batching,
+            Func<IPublisherMessageBatching, CancellationToken, Task> next, CancellationToken cancellationToken)
         {
             await _retryPolicy.ExecuteAsync(async () =>
             {
@@ -45,16 +44,15 @@ namespace EasyRabbitMqClient.Behaviors.Retry
             GC.SuppressFinalize(this);
         }
 
+        protected abstract TimeSpan GetDelayForAttempt(int arg);
+
         protected virtual void OnDispose()
         {
         }
 
         private void Dispose(bool disposing)
         {
-            if (!_disposed && disposing)
-            {
-                OnDispose();
-            }
+            if (!_disposed && disposing) OnDispose();
 
             _disposed = true;
         }

@@ -1,5 +1,5 @@
 using System;
-using EasyRabbitMqClient.Abstractions.Models;
+using EasyRabbitMqClient.Abstractions.Publishers.Models;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Exceptions;
 
@@ -11,10 +11,12 @@ namespace EasyRabbitMqClient.Core.Exceptions
         {
         }
 
-        protected EasyRabbitMqClientException(IMessageBatching batching, string message, Exception exception)
+        protected EasyRabbitMqClientException(IPublisherMessageBatching batching, string message, Exception exception)
         {
             Batching = batching;
         }
+
+        public IPublisherMessageBatching Batching { get; }
 
         public static EasyRabbitMqClientException Create(OperationInterruptedException ex)
         {
@@ -25,7 +27,5 @@ namespace EasyRabbitMqClient.Core.Exceptions
                 _ => new EasyRabbitMqClientException(ex.ShutdownReason.ReplyText, ex)
             };
         }
-
-        public IMessageBatching Batching { get; }
     }
 }

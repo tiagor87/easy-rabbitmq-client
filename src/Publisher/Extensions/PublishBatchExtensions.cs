@@ -1,4 +1,4 @@
-using EasyRabbitMqClient.Abstractions.Models;
+using EasyRabbitMqClient.Abstractions.Publishers.Models;
 using EasyRabbitMqClient.Core.Extensions;
 using RabbitMQ.Client;
 
@@ -6,18 +6,19 @@ namespace EasyRabbitMqClient.Publisher.Extensions
 {
     internal static class PublishBatchExtensions
     {
-        internal static bool Add(this IBasicPublishBatch batch, IModel model, IMessage message)
+        internal static bool Add(this IBasicPublishBatch batch, IModel model, IPublisherMessage publisherMessage)
         {
-            if (message.CancellationToken.IsCancellationRequested) return false;
-            
-            message.Routing.DeclareExchange(model);
-            
+            if (publisherMessage.CancellationToken.IsCancellationRequested) return false;
+
+            publisherMessage.Routing.Verify(model);
+
             var basicProperties = model.CreateBasicProperties();
-            basicProperties.AddMessageProperties(message);
-            
-            batch.Add(message.Routing.ExchangeName, message.Routing.RoutingKey, false, basicProperties,
-                message.Serialize());
-            
+            basicProperties.AddMessageProperties(publisherMessage);
+
+            batch.Add(publisherMessage.Routing.ExchangeName, publisherMessage.Routing.RoutingKey, false,
+                basicProperties,
+                publisherMessage.Serialize());
+
             return true;
         }
     }

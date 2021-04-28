@@ -6,7 +6,7 @@ namespace EasyRabbitMqClient.Core.Models
 {
     public class RabbitMqConnectionString
     {
-        private RabbitMqConnectionString(string connectionString)
+        public RabbitMqConnectionString(string connectionString)
         {
             Value = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         }
@@ -15,9 +15,9 @@ namespace EasyRabbitMqClient.Core.Models
 
         public static implicit operator RabbitMqConnectionString(string connectionString)
         {
-            return new(connectionString);
+            return new RabbitMqConnectionString(connectionString);
         }
-        
+
         public static implicit operator string(RabbitMqConnectionString connectionString)
         {
             return connectionString?.Value;
@@ -29,25 +29,25 @@ namespace EasyRabbitMqClient.Core.Models
             const int recoveryInterval = 5;
             const int requestedHeartbeat = 5;
             const int consumerDispatchConcurrency = 100;
-            
+
             var uri = new Uri(Value);
-            return new ConnectionFactory()
+            return new ConnectionFactory
             {
                 Uri = uri,
                 TopologyRecoveryEnabled = true,
                 AutomaticRecoveryEnabled = true,
                 DispatchConsumersAsync = true,
                 UseBackgroundThreadsForIO = true,
-                
+
                 ConsumerDispatchConcurrency = consumerDispatchConcurrency,
                 NetworkRecoveryInterval = TimeSpan.FromSeconds(recoveryInterval),
                 RequestedHeartbeat = TimeSpan.FromSeconds(requestedHeartbeat),
-                
-                Ssl = new SslOption()
+
+                Ssl = new SslOption
                 {
                     Enabled = uri.Scheme.Equals(sslSchema, StringComparison.InvariantCultureIgnoreCase),
                     ServerName = uri.Host,
-                    Version = SslProtocols.None | SslProtocols.Tls12 | SslProtocols.Tls13
+                    Version = SslProtocols.None | SslProtocols.Tls12
                 }
             };
         }

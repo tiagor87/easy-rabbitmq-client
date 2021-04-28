@@ -1,6 +1,5 @@
 using System;
-using EasyRabbitMqClient.Abstractions;
-using EasyRabbitMqClient.Abstractions.Models;
+using EasyRabbitMqClient.Abstractions.Publishers.Models;
 
 namespace EasyRabbitMqClient.Core.Models
 {
@@ -11,7 +10,7 @@ namespace EasyRabbitMqClient.Core.Models
             ExchangeName = exchangeName ?? throw new ArgumentNullException(nameof(exchangeName));
             RoutingKey = routingKey ?? throw new ArgumentNullException(nameof(routingKey));
         }
-        
+
         public string ExchangeName { get; }
         public string RoutingKey { get; }
     }

@@ -1,7 +1,7 @@
 using System;
 using System.Threading;
 using EasyRabbitMqClient.Abstractions.Publishers;
-using EasyRabbitMqClient.Core.Builders;
+using EasyRabbitMqClient.Publisher.Builders;
 using FluentAssertions;
 using Moq;
 using Xunit;
@@ -17,10 +17,10 @@ namespace EasyRabbitMqClient.Core.Tests.Builders
             const string exchange = "exchange";
             const string routingKey = "routingKey";
             const string correlationId = "correlationId";
-            var publisherMock = new Mock<IMessagePublisher>();
+            var publisherMock = new Mock<IPublisher>();
             var serializerMock = new Mock<IPublisherSerializer>();
-            
-            var publishingMessage = new MessageBuilder()
+
+            var publishingMessage = new PublisherMessageBuilder()
                 .ForPublisher(publisherMock.Object)
                 .WithMessage(message)
                 .WithRouting(exchange, routingKey)
