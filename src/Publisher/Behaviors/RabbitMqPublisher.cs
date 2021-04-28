@@ -24,51 +24,68 @@ namespace EasyRabbitMqClient.Publisher.Behaviors
             _connectionFactory = connectionFactory;
         }
 
-        public Task PublishAsync(IPublisherMessageBatching batching, CancellationToken cancellationToken)
+        public async Task PublishAsync(IPublisherMessageBatching batching, CancellationToken cancellationToken)
         {
-            const string lastException = "LastException";
+            if (_disposed) throw new ObjectDisposedException(nameof(RabbitMqPublisher));
 
-            var failedMessages = new HashSet<IPublisherMessage>(0);
-            var hasSuccessMessages = false;
-            using var model = Connect().CreateModel();
-            try
+            if (!batching.Any()) return;
+
+            await Task.Factory.StartNew(() =>
             {
-                model.ConfirmSelect();
+                const string lastException = "LastException";
 
-                var batch = model.CreateBasicPublishBatch();
-                foreach (var message in batching)
+                try
+                {
+                    var failedMessages = new HashSet<IPublisherMessage>(0);
+                    var hasSuccessMessages = false;
+                    using var model = Connect().CreateModel();
                     try
                     {
-                        hasSuccessMessages = batch.Add(model, message) || hasSuccessMessages;
+                        model.ConfirmSelect();
+
+                        var batch = model.CreateBasicPublishBatch();
+                        foreach (var message in batching)
+                            try
+                            {
+                                hasSuccessMessages = batch.Add(model, message) || hasSuccessMessages;
+                            }
+                            catch (Exception ex)
+                            {
+                                message.AddHeader(lastException, ex.ToString());
+                                failedMessages.Add(message);
+                            }
+
+                        if (batching.Count == failedMessages.Count)
+                            throw new PublishingException(batching, "All messages failed.", null);
+
+                        if (cancellationToken.IsCancellationRequested
+                            || !hasSuccessMessages) return Task.CompletedTask;
+
+                        batch.Publish();
+                        if (!model.WaitForConfirms(batching.PublishingTimeout))
+                            throw new PublishingNotConfirmedException(
+                                new PublisherMessageBatching(batching.Publisher, batching));
+
+                        if (!failedMessages.Any()) return Task.CompletedTask;
+
+                        throw new PublishingException(new PublisherMessageBatching(batching.Publisher, failedMessages),
+                            "A few messages failed.",
+                            null);
                     }
-                    catch (Exception ex)
+                    finally
                     {
-                        message.AddHeader(lastException, ex.ToString());
-                        failedMessages.Add(message);
+                        model.Close();
                     }
-
-                if (batching.Count == failedMessages.Count)
-                    throw new PublishingException(batching, "All messages failed.", null);
-
-                if (cancellationToken.IsCancellationRequested
-                    || !hasSuccessMessages) return Task.CompletedTask;
-
-                batch.Publish();
-                if (!model.WaitForConfirms(batching.PublishingTimeout))
-                    throw new PublishingNotConfirmedException(
-                        new PublisherMessageBatching(batching.Publisher, batching.Except(failedMessages)),
-                        "The publishing was not confirmed.", null);
-
-                if (!failedMessages.Any()) return Task.CompletedTask;
-
-                throw new PublishingException(new PublisherMessageBatching(batching.Publisher, failedMessages),
-                    "A few messages failed.",
-                    null);
-            }
-            finally
-            {
-                model.Close();
-            }
+                }
+                catch (PublishingException)
+                {
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    throw new PublishingException(batching, ex);
+                }
+            }, cancellationToken);
         }
 
         public void Dispose()

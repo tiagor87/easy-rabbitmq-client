@@ -81,6 +81,26 @@ namespace EasyRabbitMqClient.Publisher.Tests
         }
 
         [Fact]
+        public async Task GivenMessage_WhenPublishConfirmationFails_ShouldNotify()
+        {
+            var messageMock = new Mock<IPublisherMessage>();
+            var observerMock = new Mock<IObserver<IPublisherMessageBatching>>();
+
+            _publisherMock.Setup(x =>
+                    x.PublishAsync(
+                        It.IsAny<IPublisherMessageBatching>(),
+                        It.IsAny<CancellationToken>()))
+                .Throws(new PublishingNotConfirmedException(_publisher.NewBatching(messageMock.Object)))
+                .Verifiable();
+
+            using var _ = _publisher.Subscribe(observerMock.Object);
+            await _publisher.PublishAsync(messageMock.Object, CancellationToken.None);
+
+            _publisherMock.VerifyAll();
+            observerMock.Verify(x => x.OnError(It.IsAny<PublishingNotConfirmedException>()));
+        }
+
+        [Fact]
         public async Task GivenMessage_WhenPublish_ShouldNotifyObservers()
         {
             var messageMock = new Mock<IPublisherMessage>();

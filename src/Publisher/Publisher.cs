@@ -65,6 +65,10 @@ namespace EasyRabbitMqClient.Publisher
                 await _behavior.ExecuteAsync(batching, null, cancellationToken);
                 OnNext(batching);
             }
+            catch (PublishingNotConfirmedException ex)
+            {
+                OnError(ex);
+            }
             catch (PublishingException ex)
             {
                 OnError(ex);

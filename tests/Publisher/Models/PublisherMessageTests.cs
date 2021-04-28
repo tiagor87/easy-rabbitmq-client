@@ -1,6 +1,7 @@
 using System;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using EasyRabbitMqClient.Abstractions.Publishers;
 using EasyRabbitMqClient.Abstractions.Publishers.Models;
 using EasyRabbitMqClient.Publisher.Models;
@@ -8,7 +9,7 @@ using FluentAssertions;
 using Moq;
 using Xunit;
 
-namespace EasyRabbitMqClient.Core.Tests.Models
+namespace EasyRabbitMqClient.Publisher.Tests.Models
 {
     public class PublisherMessageTests
     {
@@ -127,6 +128,35 @@ namespace EasyRabbitMqClient.Core.Tests.Models
             message.Should().NotBeNull();
             Encoding.UTF8.GetString(result.ToArray()).Should().Be(body);
             serializerMock.VerifyAll();
+        }
+
+        [Fact]
+        public async Task GivenMessage_WhenPublish_ShouldPublish()
+        {
+            const string body = "test_message";
+            const string correlationId = "correlationId";
+            var publisherMock = new Mock<IPublisher>();
+            var serializerMock = new Mock<IPublisherSerializer>();
+            var routingMock = new Mock<IRouting>();
+            var cancellationToken = new CancellationToken();
+            publisherMock
+                .Setup(x => x.PublishAsync(It.IsAny<PublisherMessage>(), cancellationToken))
+                .Verifiable();
+
+            var message = new PublisherMessage(
+                publisherMock.Object,
+                body,
+                serializerMock.Object,
+                routingMock.Object,
+                correlationId,
+                cancellationToken);
+
+            await message.PublishAsync(cancellationToken);
+
+            message.Should().NotBeNull();
+            message.GetHeaders().Should().ContainKey("PublishedAt");
+            message.GetHeaders()["PublishedAt"].ToString().Should().MatchRegex(@"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}");
+            publisherMock.VerifyAll();
         }
     }
 }

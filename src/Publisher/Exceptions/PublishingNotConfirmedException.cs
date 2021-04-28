@@ -1,13 +1,11 @@
-using System;
 using EasyRabbitMqClient.Abstractions.Publishers.Models;
-using EasyRabbitMqClient.Core.Exceptions;
 
 namespace EasyRabbitMqClient.Publisher.Exceptions
 {
-    public class PublishingNotConfirmedException : EasyRabbitMqClientException
+    public class PublishingNotConfirmedException : PublishingException
     {
-        public PublishingNotConfirmedException(IPublisherMessageBatching batching, string message, Exception exception)
-            : base(batching, message, exception)
+        public PublishingNotConfirmedException(IPublisherMessageBatching batching)
+            : base(batching, "The publishing was not confirmed.", null)
         {
         }
     }

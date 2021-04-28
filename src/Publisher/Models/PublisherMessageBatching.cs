@@ -13,14 +13,14 @@ namespace EasyRabbitMqClient.Publisher.Models
     {
         private const int TIMEOUT = 500;
 
-        internal PublisherMessageBatching(IPublisher publisher, params IPublisherMessage[] messages) :
+        public PublisherMessageBatching(IPublisher publisher, params IPublisherMessage[] messages) :
             base(messages)
         {
             Publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
             PublishingTimeout = TimeSpan.FromMilliseconds(TIMEOUT);
         }
 
-        internal PublisherMessageBatching(IPublisher publisher, IEnumerable<IPublisherMessage> messages,
+        public PublisherMessageBatching(IPublisher publisher, IEnumerable<IPublisherMessage> messages,
             TimeSpan? publishingTimeout = null) : base(messages.ToList())
         {
             Publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
