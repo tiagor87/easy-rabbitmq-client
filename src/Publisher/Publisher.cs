@@ -44,13 +44,15 @@ namespace EasyRabbitMqClient.Publisher
 
         public async Task PublishAsync(IPublisherMessage publisherMessage, CancellationToken cancellationToken)
         {
-            var batching = new PublisherMessageBatching(new[] {publisherMessage});
+            if (publisherMessage is null) throw new ArgumentNullException(nameof(publisherMessage));
+            var batching = new PublisherMessageBatching(this, publisherMessage);
             await PublishAsync(batching, cancellationToken);
         }
 
         public async Task PublishAsync(IPublisherMessageBatching batching,
             CancellationToken cancellationToken = default)
         {
+            if (batching is null) throw new ArgumentNullException(nameof(batching));
             if (_disposed) throw new ObjectDisposedException(nameof(Publisher));
 
             try
@@ -61,8 +63,8 @@ namespace EasyRabbitMqClient.Publisher
             catch (PublishingException ex)
             {
                 OnError(ex);
-                var success = new PublisherMessageBatching(batching.Except(ex.Batching));
-                if (success.Any()) OnNext(success);
+                if (batching.Count > ex.Batching.Count)
+                    OnNext(new PublisherMessageBatching(this, batching.Except(ex.Batching)));
             }
             catch (EasyRabbitMqClientException ex)
             {

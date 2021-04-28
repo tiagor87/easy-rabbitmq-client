@@ -12,6 +12,8 @@ namespace EasyRabbitMqClient.Publisher.Extensions
 
             publisherMessage.Routing.Verify(model);
 
+            publisherMessage.MarkAsPublished();
+
             var basicProperties = model.CreateBasicProperties();
             basicProperties.AddMessageProperties(publisherMessage);
 

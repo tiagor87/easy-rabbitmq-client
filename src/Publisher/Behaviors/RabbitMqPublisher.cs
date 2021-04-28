@@ -54,11 +54,15 @@ namespace EasyRabbitMqClient.Publisher.Behaviors
                     || !hasSuccessMessages) return Task.CompletedTask;
 
                 batch.Publish();
-                model.WaitForConfirmsOrDie(batching.PublishingTimeout);
+                if (!model.WaitForConfirms(batching.PublishingTimeout))
+                    throw new PublishingNotConfirmedException(
+                        new PublisherMessageBatching(batching.Publisher, batching.Except(failedMessages)),
+                        "The publishing was not confirmed.", null);
 
                 if (!failedMessages.Any()) return Task.CompletedTask;
 
-                throw new PublishingException(new PublisherMessageBatching(failedMessages), "A few messages failed.",
+                throw new PublishingException(new PublisherMessageBatching(batching.Publisher, failedMessages),
+                    "A few messages failed.",
                     null);
             }
             finally

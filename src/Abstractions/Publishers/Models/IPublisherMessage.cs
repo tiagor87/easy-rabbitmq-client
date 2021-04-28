@@ -11,9 +11,11 @@ namespace EasyRabbitMqClient.Abstractions.Publishers.Models
         string CorrelationId { get; }
         IRouting Routing { get; }
         CancellationToken CancellationToken { get; }
+        IPublisher Publisher { get; }
         ReadOnlyMemory<byte> Serialize();
         IDictionary<string, object> GetHeaders();
         void AddHeader(string key, object value);
+        void MarkAsPublished();
         Task PublishAsync(CancellationToken cancellationToken);
     }
 }

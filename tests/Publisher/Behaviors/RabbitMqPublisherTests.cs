@@ -70,7 +70,8 @@ namespace EasyRabbitMqClient.Publisher.Tests.Behaviors
                 .Verifiable();
             _channelMock.Setup(x => x.ConfirmSelect())
                 .Verifiable();
-            _channelMock.Setup(x => x.WaitForConfirmsOrDie(It.IsAny<TimeSpan>()))
+            _channelMock.Setup(x => x.WaitForConfirms(It.IsAny<TimeSpan>()))
+                .Returns(true)
                 .Verifiable();
 
             routingMock.SetupGet(x => x.ExchangeName).Returns(exchange).Verifiable();
@@ -138,7 +139,8 @@ namespace EasyRabbitMqClient.Publisher.Tests.Behaviors
                 .Verifiable();
             _channelMock.Setup(x => x.ConfirmSelect())
                 .Verifiable();
-            _channelMock.Setup(x => x.WaitForConfirmsOrDie(It.IsAny<TimeSpan>()))
+            _channelMock.Setup(x => x.WaitForConfirms(It.IsAny<TimeSpan>()))
+                .Returns(true)
                 .Verifiable();
 
             routingMock.SetupGet(x => x.ExchangeName).Returns(exchange).Verifiable();
@@ -216,7 +218,8 @@ namespace EasyRabbitMqClient.Publisher.Tests.Behaviors
                 .Verifiable();
             _channelMock.Setup(x => x.ConfirmSelect())
                 .Verifiable();
-            _channelMock.Setup(x => x.WaitForConfirmsOrDie(It.IsAny<TimeSpan>()))
+            _channelMock.Setup(x => x.WaitForConfirms(It.IsAny<TimeSpan>()))
+                .Returns(true)
                 .Verifiable();
 
             routingMock.SetupGet(x => x.ExchangeName).Returns(exchange).Verifiable();
@@ -259,7 +262,7 @@ namespace EasyRabbitMqClient.Publisher.Tests.Behaviors
 
             using var _ = _publisher.Subscribe(observerMock.Object);
             await _publisher.PublishAsync(
-                new PublisherMessageBatching(new[] {messageMock.Object, messageMock.Object, messageMock.Object}),
+                new PublisherMessageBatching(_publisher, messageMock.Object, messageMock.Object, messageMock.Object),
                 CancellationToken.None);
 
             _channelMock.VerifyAll();
@@ -294,7 +297,8 @@ namespace EasyRabbitMqClient.Publisher.Tests.Behaviors
                 .Verifiable();
             _channelMock.Setup(x => x.ConfirmSelect())
                 .Verifiable();
-            _channelMock.Setup(x => x.WaitForConfirmsOrDie(It.IsAny<TimeSpan>()))
+            _channelMock.Setup(x => x.WaitForConfirms(It.IsAny<TimeSpan>()))
+                .Returns(true)
                 .Verifiable();
 
             routingMock.SetupGet(x => x.ExchangeName).Returns(exchange).Verifiable();

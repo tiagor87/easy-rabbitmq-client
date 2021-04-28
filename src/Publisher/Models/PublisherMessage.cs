@@ -11,7 +11,6 @@ namespace EasyRabbitMqClient.Publisher.Models
     {
         private readonly IDictionary<string, object> _headers;
         private readonly object _message;
-        private readonly IPublisher _publisher;
         private readonly IPublisherSerializer _serializer;
 
         public PublisherMessage(
@@ -25,7 +24,7 @@ namespace EasyRabbitMqClient.Publisher.Models
             CreatedAt = DateTime.UtcNow;
             Routing = routing ?? throw new ArgumentNullException(nameof(routing));
             CancellationToken = cancellationToken;
-            _publisher = publisher;
+            Publisher = publisher ?? throw new ArgumentNullException(nameof(publisher));
             _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
             CorrelationId = correlationId ?? Guid.NewGuid().ToString();
             _message = message;
@@ -38,6 +37,7 @@ namespace EasyRabbitMqClient.Publisher.Models
             };
         }
 
+        public IPublisher Publisher { get; }
         public DateTime CreatedAt { get; }
         public string CorrelationId { get; }
         public IRouting Routing { get; }
@@ -66,7 +66,13 @@ namespace EasyRabbitMqClient.Publisher.Models
 
         public async Task PublishAsync(CancellationToken cancellationToken)
         {
-            await _publisher.PublishAsync(this, cancellationToken);
+            MarkAsPublished();
+            await Publisher.PublishAsync(this, cancellationToken);
+        }
+
+        public void MarkAsPublished()
+        {
+            AddHeader("PublishedAt", DateTime.UtcNow.ToString("s"));
         }
     }
 }

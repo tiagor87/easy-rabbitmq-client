@@ -16,7 +16,7 @@ namespace EasyRabbitMqClient.Subscriber.Tests
 {
     public class UnitTest1
     {
-        [Fact]
+        [Fact(Skip = "Teste")]
         public void Test1()
         {
             var services = new ServiceCollection();
