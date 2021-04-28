@@ -13,6 +13,11 @@ using RabbitMQ.Client;
 
 namespace EasyRabbitMqClient.Subscriber.Models
 {
+    internal static class ChannelSyncState
+    {
+        public static volatile object Sync = new object();
+    }
+
     internal class Consumer<TMessage> : AsyncDefaultBasicConsumer, IDisposable
     {
         private readonly IConnection _connection;
@@ -29,7 +34,7 @@ namespace EasyRabbitMqClient.Subscriber.Models
             _options = options;
             _provider = provider;
             _tokenSource = new CancellationTokenSource();
-            Subscribe();
+            TrySubscribeAsync(_tokenSource.Token);
         }
 
         public void Dispose()
@@ -42,20 +47,20 @@ namespace EasyRabbitMqClient.Subscriber.Models
             string exchange, string routingKey,
             IBasicProperties properties, ReadOnlyMemory<byte> body)
         {
+            var scopeFactory = _provider.GetRequiredService<IServiceScopeFactory>();
+            using var scope = scopeFactory.CreateScope();
+            var serializer = scope.ServiceProvider.GetRequiredService<ISubscriberSerializer>();
+
+            var message = new SubscriberMessage(
+                _channel,
+                serializer,
+                deliveryTag,
+                new Routing(exchange, routingKey),
+                properties,
+                body);
+
             try
             {
-                var scopeFactory = _provider.GetRequiredService<IServiceScopeFactory>();
-                using var scope = scopeFactory.CreateScope();
-                var serializer = scope.ServiceProvider.GetRequiredService<ISubscriberSerializer>();
-
-                var message = new SubscriberMessage(
-                    _channel,
-                    serializer,
-                    deliveryTag,
-                    new Routing(exchange, routingKey),
-                    properties,
-                    body);
-
                 var handler = scope.ServiceProvider.GetRequiredService<ISubscriberHandler<TMessage>>();
                 var behaviors = scope.ServiceProvider.GetServices<IBehavior<ISubscriberMessage>>().ToList();
                 var behavior =
@@ -69,7 +74,7 @@ namespace EasyRabbitMqClient.Subscriber.Models
             }
             catch
             {
-                _channel.BasicNack(deliveryTag, false, true);
+                await message.NotAckAsync(_tokenSource.Token);
             }
         }
 
@@ -83,23 +88,31 @@ namespace EasyRabbitMqClient.Subscriber.Models
             if (disposing && !_disposed)
             {
                 _tokenSource.Cancel();
-                _channel?.BasicCancel(_consumerTag);
-                _channel?.Close();
-                _channel?.Dispose();
+                lock (ChannelSyncState.Sync)
+                {
+                    _channel?.BasicCancel(_consumerTag ?? string.Empty);
+                    _channel?.Close();
+                    _channel?.Dispose();
+                }
             }
 
             _disposed = true;
         }
 
-        private bool Subscribe()
+        private bool TrySubscribe(CancellationToken cancellationToken)
         {
             try
             {
-                _channel = _connection.CreateModel();
-                _channel.BasicQos(0, _options.PrefetchCount, false);
-                _consumerTag = _channel.BasicConsume(_options.QueueName, false, this);
-                _channel.ModelShutdown += OnChannelShutdown;
-                Model = _channel;
+                lock (ChannelSyncState.Sync)
+                {
+                    if (cancellationToken.IsCancellationRequested || _disposed) return true;
+                    _channel = _connection.CreateModel();
+                    _channel.BasicQos(0, _options.PrefetchCount, false);
+                    _consumerTag = _channel.BasicConsume(_options.QueueName, false, this);
+                    _channel.ModelShutdown += OnChannelShutdown;
+                    Model = _channel;
+                }
+
                 return true;
             }
             catch
@@ -113,10 +126,16 @@ namespace EasyRabbitMqClient.Subscriber.Models
             if (e.Initiator == ShutdownInitiator.Application) return;
             _channel.Dispose();
             _channel = null;
+            TrySubscribeAsync(_tokenSource.Token);
+        }
+
+        private void TrySubscribeAsync(CancellationToken cancellationToken)
+        {
             Task.Factory.StartNew(() =>
             {
-                while (!Subscribe())
-                    Task.Delay(_options.ReconnectDelayInMs).ConfigureAwait(false).GetAwaiter().GetResult();
+                while (!cancellationToken.IsCancellationRequested && !TrySubscribe(cancellationToken))
+                    Task.Delay(_options.ReconnectDelayInMs, cancellationToken).ConfigureAwait(false).GetAwaiter()
+                        .GetResult();
             }, TaskCreationOptions.LongRunning);
         }
     }

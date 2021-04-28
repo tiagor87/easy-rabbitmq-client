@@ -60,8 +60,8 @@ namespace EasyRabbitMqClient.Subscriber
             _consumers.Add(consumer);
             return new UnSubscriber(() =>
             {
-                consumer.Dispose();
                 _consumers.Remove(consumer);
+                consumer.Dispose();
             });
         }
 

@@ -31,9 +31,8 @@ namespace EasyRabbitMqClient.Subscriber.Tests
             // ConfigureApplication
             var subscriber = provider.GetRequiredService<ISubscriber>();
 
-            subscriber.Subscribe<SimpleSubscriberHandler, Body>();
-
-            while (SimpleSubscriberHandler.Processed < 2 && LoggerBehavior.Executed < 2) Task.Delay(100).Wait();
+            var unsubscribe = subscriber.Subscribe<SimpleSubscriberHandler, Body>();
+            unsubscribe.Dispose();
         }
     }
 

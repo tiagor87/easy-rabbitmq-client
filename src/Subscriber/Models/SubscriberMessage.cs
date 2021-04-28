@@ -23,7 +23,11 @@ namespace EasyRabbitMqClient.Subscriber.Models
         {
             Routing = routing;
             _channel = channel;
-            _channel.ConfirmSelect();
+            lock (ChannelSyncState.Sync)
+            {
+                _channel.ConfirmSelect();
+            }
+
             _serializer = serializer;
             _deliveryTag = deliveryTag;
             _body = body;
@@ -42,7 +46,11 @@ namespace EasyRabbitMqClient.Subscriber.Models
         public async Task AckAsync(CancellationToken cancellationToken)
         {
             if (_isAck) return;
-            _channel.BasicAck(_deliveryTag, false);
+            lock (ChannelSyncState.Sync)
+            {
+                _channel.BasicAck(_deliveryTag, false);
+            }
+
             await WaitForConfirmsAsync(cancellationToken);
             _isAck = true;
         }
@@ -50,15 +58,27 @@ namespace EasyRabbitMqClient.Subscriber.Models
         public async Task NotAckAsync(CancellationToken cancellationToken)
         {
             if (_isAck) return;
-            _channel.BasicNack(_deliveryTag, false, false);
+            lock (ChannelSyncState.Sync)
+            {
+                _channel.BasicNack(_deliveryTag, false, false);
+            }
+
             await WaitForConfirmsAsync(cancellationToken);
             _isAck = true;
         }
 
         private async Task WaitForConfirmsAsync(CancellationToken cancellationToken)
         {
-            while (!cancellationToken.IsCancellationRequested &&
-                   !_channel.WaitForConfirms(TimeSpan.FromMilliseconds(100))) await Task.Delay(100, cancellationToken);
+            var confirmed = false;
+            while (!cancellationToken.IsCancellationRequested && !confirmed)
+            {
+                lock (ChannelSyncState.Sync)
+                {
+                    confirmed = _channel.WaitForConfirms(TimeSpan.FromMilliseconds(100));
+                }
+
+                await Task.Delay(100, cancellationToken);
+            }
         }
     }
 }
