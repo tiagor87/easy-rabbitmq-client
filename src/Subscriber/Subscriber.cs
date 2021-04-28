@@ -52,7 +52,7 @@ namespace EasyRabbitMqClient.Subscriber
             IEnumerable<IBinding> bindings = null) where T : ISubscriberHandler<TMessage>
         {
             using var channel = Connect().CreateModel();
-            exchange.Declare(channel);
+            exchange?.Declare(channel);
             queue?.Declare(channel);
             bindings?.Bind(channel);
 

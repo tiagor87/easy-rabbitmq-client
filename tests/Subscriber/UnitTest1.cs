@@ -16,20 +16,24 @@ namespace EasyRabbitMqClient.Subscriber.Tests
 {
     public class UnitTest1
     {
-        [Fact(Skip = "Teste")]
+        [Fact]
         public void Test1()
         {
             var services = new ServiceCollection();
+            // ConfigureServices
             services.AddScoped<ISubscriberSerializer, Serializer>();
             services.AddScoped<IBehavior<ISubscriberMessage>, LoggerBehavior>();
-            services.AddScoped<ISubscriberHandler<Body>, SubscriberHandler>();
+            services.AddScoped<ISubscriberHandler<Body>, SimpleSubscriberHandler>();
+            services.AddScoped(_ => new RabbitMqConnectionString("amqp://guest:guest@localhost/").CreateFactory());
+            services.AddScoped<ISubscriber, Subscriber>();
             var provider = services.BuildServiceProvider();
-            var subscriber = new Subscriber(provider,
-                new RabbitMqConnectionString("amqp://guest:guest@localhost/").CreateFactory());
 
-            subscriber.Subscribe<SubscriberHandler, Body>();
+            // ConfigureApplication
+            var subscriber = provider.GetRequiredService<ISubscriber>();
 
-            while (SubscriberHandler.Processed < 2 && LoggerBehavior.Executed < 2) Task.Delay(100).Wait();
+            subscriber.Subscribe<SimpleSubscriberHandler, Body>();
+
+            while (SimpleSubscriberHandler.Processed < 2 && LoggerBehavior.Executed < 2) Task.Delay(100).Wait();
         }
     }
 
@@ -68,6 +72,18 @@ namespace EasyRabbitMqClient.Subscriber.Tests
     [Binding("test.topic", "Test-All", "test.1.#")]
     [Binding("test.topic", "Test-All", "test.2.#")]
     public class SubscriberHandler : ISubscriberHandler<Body>
+    {
+        public static int Processed { get; set; }
+
+        public Task HandleAsync(Body message, CancellationToken cancellationToken)
+        {
+            Processed++;
+            return Task.CompletedTask;
+        }
+    }
+
+    [Subscription("Test-All", 10)]
+    public class SimpleSubscriberHandler : ISubscriberHandler<Body>
     {
         public static int Processed { get; set; }
 
