@@ -9,7 +9,6 @@ using EasyRabbitMqClient.Core.Exceptions;
 using EasyRabbitMqClient.Publisher.Behaviors;
 using EasyRabbitMqClient.Publisher.Builders;
 using EasyRabbitMqClient.Publisher.Exceptions;
-using EasyRabbitMqClient.Publisher.Models;
 using EasyRabbitMqClient.Publisher.Tests.Fixtures;
 using FluentAssertions;
 using Moq;
@@ -262,7 +261,7 @@ namespace EasyRabbitMqClient.Publisher.Tests.Behaviors
 
             using var _ = _publisher.Subscribe(observerMock.Object);
             await _publisher.PublishAsync(
-                new PublisherMessageBatching(_publisher, messageMock.Object, messageMock.Object, messageMock.Object),
+                _publisher.NewBatching(messageMock.Object, messageMock.Object, messageMock.Object),
                 CancellationToken.None);
 
             _channelMock.VerifyAll();

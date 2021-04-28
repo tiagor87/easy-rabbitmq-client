@@ -8,7 +8,6 @@ using EasyRabbitMqClient.Abstractions.Publishers.Models;
 using EasyRabbitMqClient.Core.Exceptions;
 using EasyRabbitMqClient.Publisher.Builders;
 using EasyRabbitMqClient.Publisher.Exceptions;
-using EasyRabbitMqClient.Publisher.Models;
 using FluentAssertions;
 using Moq;
 using Xunit;
@@ -61,7 +60,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
                     x.PublishAsync(
                         It.IsAny<IPublisherMessageBatching>(),
                         It.IsAny<CancellationToken>()))
-                .Throws(new PublishingException(new PublisherMessageBatching(_publisher, messageMock.Object),
+                .Throws(new PublishingException(_publisher.NewBatching(messageMock.Object),
                     new Exception()))
                 .Verifiable();
 
@@ -72,7 +71,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
 
             using var _ = _publisher.Subscribe(observerMock.Object);
             await _publisher.PublishAsync(
-                new PublisherMessageBatching(_publisher, messageMock.Object, messageMock.Object, messageMock.Object),
+                _publisher.NewBatching(messageMock.Object, messageMock.Object, messageMock.Object),
                 CancellationToken.None);
 
             messageMock.VerifyAll();
@@ -94,7 +93,7 @@ namespace EasyRabbitMqClient.Publisher.Tests
 
             using var _ = _publisher.Subscribe(observerMock.Object);
             await _publisher.PublishAsync(
-                new PublisherMessageBatching(_publisher, messageMock.Object, messageMock.Object, messageMock.Object),
+                _publisher.NewBatching(messageMock.Object, messageMock.Object, messageMock.Object),
                 CancellationToken.None);
 
             messageMock.VerifyAll();

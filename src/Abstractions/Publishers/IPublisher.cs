@@ -10,6 +10,7 @@ namespace EasyRabbitMqClient.Abstractions.Publishers
     public interface IPublisher : IPublisherBehavior, IObservable<IPublisherMessageBatching>
     {
         IPublisherMessageBuilder<IPublisherMessage> NewMessage();
+        IPublisherMessageBatching NewBatching(params IPublisherMessage[] messages);
         Task PublishAsync(IPublisherMessage publisherMessage, CancellationToken cancellationToken);
     }
 }

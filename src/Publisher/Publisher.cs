@@ -42,10 +42,15 @@ namespace EasyRabbitMqClient.Publisher
                 .ForPublisher(this);
         }
 
+        public IPublisherMessageBatching NewBatching(params IPublisherMessage[] messages)
+        {
+            return new PublisherMessageBatching(this, messages);
+        }
+
         public async Task PublishAsync(IPublisherMessage publisherMessage, CancellationToken cancellationToken)
         {
             if (publisherMessage is null) throw new ArgumentNullException(nameof(publisherMessage));
-            var batching = new PublisherMessageBatching(this, publisherMessage);
+            var batching = NewBatching(publisherMessage);
             await PublishAsync(batching, cancellationToken);
         }
 
