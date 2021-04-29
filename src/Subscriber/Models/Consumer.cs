@@ -85,22 +85,15 @@ namespace EasyRabbitMqClient.Subscriber.Models
 
         private void Dispose(bool disposing)
         {
-            if (disposing && !_disposed)
-            {
-                _tokenSource.Cancel();
-                lock (ChannelSyncState.Sync)
-                {
-                    _channel?.BasicCancel(_consumerTag ?? string.Empty);
-                    _channel?.Close();
-                    _channel?.Dispose();
-                }
-            }
+            if (disposing && !_disposed) _tokenSource.Cancel();
 
             _disposed = true;
         }
 
         private bool TrySubscribe(CancellationToken cancellationToken)
         {
+            TryDisposeChannel();
+
             try
             {
                 lock (ChannelSyncState.Sync)
@@ -117,6 +110,7 @@ namespace EasyRabbitMqClient.Subscriber.Models
             }
             catch
             {
+                TryDisposeChannel();
                 return false;
             }
         }
@@ -124,8 +118,6 @@ namespace EasyRabbitMqClient.Subscriber.Models
         private void OnChannelShutdown(object sender, ShutdownEventArgs e)
         {
             if (e.Initiator == ShutdownInitiator.Application) return;
-            _channel.Dispose();
-            _channel = null;
             TrySubscribeAsync(_tokenSource.Token);
         }
 
@@ -137,6 +129,23 @@ namespace EasyRabbitMqClient.Subscriber.Models
                     Task.Delay(_options.ReconnectDelayInMs, cancellationToken).ConfigureAwait(false).GetAwaiter()
                         .GetResult();
             }, TaskCreationOptions.LongRunning);
+        }
+
+        private void TryDisposeChannel()
+        {
+            if (_channel == null) return;
+
+            lock (ChannelSyncState.Sync)
+            {
+                if (_channel.IsOpen)
+                {
+                    _channel.BasicCancel(_consumerTag ?? string.Empty);
+                    _channel.Close();
+                }
+
+                _channel.Dispose();
+                _channel = null;
+            }
         }
     }
 }
