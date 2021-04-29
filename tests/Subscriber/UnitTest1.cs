@@ -6,9 +6,7 @@ using EasyRabbitMqClient.Abstractions.Behaviors;
 using EasyRabbitMqClient.Abstractions.Shared.Models;
 using EasyRabbitMqClient.Abstractions.Subscribers;
 using EasyRabbitMqClient.Abstractions.Subscribers.Models;
-using EasyRabbitMqClient.Core.Models;
 using EasyRabbitMqClient.Subscriber.Attributes;
-using Microsoft.Extensions.DependencyInjection;
 using Newtonsoft.Json;
 using Xunit;
 
@@ -19,6 +17,7 @@ namespace EasyRabbitMqClient.Subscriber.Tests
         [Fact(Skip = "Teste")]
         public void Test1()
         {
+            /*
             var services = new ServiceCollection();
             // ConfigureServices
             services.AddScoped<ISubscriberSerializer, Serializer>();
@@ -33,6 +32,7 @@ namespace EasyRabbitMqClient.Subscriber.Tests
 
             var unsubscribe = subscriber.Subscribe<SimpleSubscriberHandler, Body>();
             unsubscribe.Dispose();
+            */
         }
     }
 
